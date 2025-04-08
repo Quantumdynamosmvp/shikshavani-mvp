@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive F=ma Demo</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        body {
+            font-family: sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f0f8ff;
+            margin: 0;
+            padding: 20px;
+        }
+        .controls {
+            display: flex;
+            gap: 30px;
+            margin-bottom: 20px;
+            align-items: center;
+            background-color: #e0f0ff;
+            padding: 15px 25px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        label {
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #333;
+        }
+        input[type="range"] {
+            width: 150px;
+            cursor: pointer;
+        }
+        output {
+            font-weight: bold;
+            color: #0056b3;
+            min-width: 40px;
+            text-align: center;
+        }
+        #visualization {
+            background: linear-gradient(to bottom, #b0e0e6 0%, #e0f8ff 70%, #f8f8f8 100%);
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        .rocket {
+            fill: #d3d3d3;
+            stroke: #555;
+            stroke-width: 1.5;
+            transition: transform 0.3s ease-out;
+        }
+        .rocket-body {
+             fill: url(#rocketGradient);
+        }
+        .fin {
+            fill: #a9a9a9;
+             stroke: #444;
+             stroke-width: 1;
+        }
+        .window {
+            fill: #add8e6;
+            stroke: #4682b4;
+            stroke-width: 1;
+        }
+        .force-arrow {
+            stroke: #ff4500;
+            stroke-width: 4;
+            fill: #ff4500;
+            transition: all 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+        }
+        .acceleration-text {
+            font-size: 16px;
+            font-weight: bold;
+            fill: #006400;
+            text-anchor: end;
+        }
+        button {
+            padding: 8px 15px;
+            font-size: 14px;
+            font-weight: bold;
+            color: white;
+            background-color: #007bff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.2s ease;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+         button:active {
+            background-color: #004085;
+        }
+    </style>
+</head>
+<body>
+
+<h1>Newton's Second Law: F = ma</h1>
+
+<div class="controls">
+    <div class="control-group">
+        <label for="forceSlider">Net Force (F): <output id="forceValue">100</output> N</label>
+        <input type="range" id="forceSlider" name="force" min="10" max="200" value="100">
+    </div>
+    <div class="control-group">
+        <label for="massSlider">Mass (m): <output id="massValue">25</output> kg</label>
+        <input type="range" id="massSlider" name="mass" min="5" max="50" value="25">
+    </div>
+     <button id="resetButton">Reset</button>
+</div>
+
+<svg id="visualization" width="600" height="450"></svg>
+
+<script>
+    const svg = d3.select("#visualization");
+    const width = +svg.attr("width");
+    const height = +svg.attr("height");
+    const groundLevel = height - 50;
+
+    const initialForce = 100;
+    const initialMass = 25;
+    let currentForce = initialForce;
+    let currentMass = initialMass;
+    let currentAcceleration = calculateAcceleration(currentForce, currentMass);
+    let rocketY = groundLevel;
+    let rocketVelocity = 0;
+    let animationTimer = null;
+
+    const forceScale = d3.scaleLinear()
+        .domain([10, 200])
+        .range([20, 150]);
+
+    const forceThicknessScale = d3.scaleLinear()
+        .domain([10, 200])
+        .range([2, 8]);
+
+    const massScale = d3.scaleLinear()
+        .domain([5, 50])
+        .range([0.8, 1.5]);
+
+    const defs = svg.append("defs");
+
+    const rocketGradient = defs.append("linearGradient")
+        .attr("id", "rocketGradient")
+        .attr("x1", "0%")
+        .attr("y1", "0%")
+        .attr("x2", "100%")
+        .attr("y2", "0%");
+
+    rocketGradient.append("stop")
+        .attr("offset", "0%")
+        .attr("stop-color", "#c0c0c0");
+
+    rocketGradient.append("stop")
+        .attr("offset", "100%")
+        .attr("stop-color", "#a0a0a0");
+
+    const forceArrowGroup = svg.append("g").attr("class", "force-arrow-group");
+    const forceArrowShaft = forceArrowGroup.append("line")
+        .attr("class", "force-arrow")
+        .attr("x1", 0).attr("y1", 0)
+        .attr("x2", 0).attr("y2", -forceScale(initialForce));
+
+    const forceArrowHead = forceArrowGroup.append("path")
+        .attr("class", "force-arrow")
+        .attr("d", "M-6,-6 L0,0 L6,-6 Z");
+
+    const rocketGroup = svg.append("g")
+        .attr("class", "rocket")
+        .attr("transform", `translate(${width / 2}, ${rocketY}) scale(${massScale(initialMass)})`);
+
+    rocketGroup.append("path")
+        .attr("class", "rocket-body")
+        .attr("d", "M -15,0 L -15,-50 Q 0,-70 15,-50 L 15,0 Z");
+
+    rocketGroup.append("path")
+        .attr("class", "fin")
+        .attr("d", "M -15,0 L -25,-10 L -25,10 Z");
+
+    rocketGroup.append("path")
+        .attr("class", "fin")
+        .attr("d", "M 15,0 L 25,-10 L 25,10 Z");
+
+    rocketGroup.append("circle")
+        .attr("class", "window")
+        .attr("cx", 0)
+        .attr("cy", -35)
+        .attr("r", 5);
+
+    const accelerationText = svg.append("text")
+        .attr("class", "acceleration-text")
+        .attr("x", width - 15)
+        .attr("y", 30)
+        .text(`a: ${currentAcceleration.toFixed(2)} m/s²`);
+
+    const forceSlider = d3.select("#forceSlider");
+    const massSlider = d3.select("#massSlider");
+    const forceValue = d3.select("#forceValue");
+    const massValue = d3.select("#massValue");
+    const resetButton = d3.select("#resetButton");
+
+    forceSlider.on("input", updateVisualization);
+    massSlider.on("input", updateVisualization);
+
+    resetButton.on("click", reset);
+
+    function calculateAcceleration(force, mass) {
+        return mass === 0 ? 0 : force / mass;
+    }
+
+    function updateVisualization() {
+        currentForce = +forceSlider.property("value");
+        currentMass = +massSlider.property("value");
+        forceValue.text(currentForce);
+        massValue.text(currentMass);
+        currentAcceleration = calculateAcceleration(currentForce, currentMass);
+
+        accelerationText.text(`a: ${currentAcceleration.toFixed(2)} m/s²`);
+
+        const arrowLength = forceScale(currentForce);
+        const arrowThickness = forceThicknessScale(currentForce);
+
+        forceArrowShaft.transition().duration(300).ease(d3.easeCubicOut)
+            .attr("y2", -arrowLength)
+            .attr("stroke-width", arrowThickness);
+
+        forceArrowHead.transition().duration(300).ease(d3.easeCubicOut)
+            .attr("transform", `translate(0, ${-arrowLength}) scale(${arrowThickness / 4})`)
+            .attr("stroke-width", arrowThickness / 2);
+
+        rocketGroup.transition().duration(300).ease(d3.easeCubicOut)
+            .attr("transform", `translate(${width / 2}, ${rocketY}) scale(${massScale(currentMass)})`);
+
+        forceArrowGroup.attr("transform", `translate(${width / 2}, ${rocketY})`);
+
+        stopAnimation();
+        startAnimation();
+    }
+
+    function animationStep(elapsed) {
+        const visualSpeedFactor = 0.5;
+        rocketVelocity = currentAcceleration * visualSpeedFactor;
+
+        rocketY -= rocketVelocity * (16 / 1000);
+
+        if (rocketY < 20 || currentAcceleration <= 0) {
+            rocketY = Math.max(20, rocketY);
+            if (currentAcceleration <= 0) rocketVelocity = 0;
+        }
+
+        const currentRocketScale = massScale(currentMass);
+        rocketGroup.attr("transform", `translate(${width / 2}, ${rocketY}) scale(${currentRocketScale})`);
+        forceArrowGroup.attr("transform", `translate(${width / 2}, ${rocketY})`);
+    }
+
+    function startAnimation() {
+        if (!animationTimer && currentAcceleration > 0) {
+             animationTimer = d3.timer(animationStep);
+        }
+        const currentRocketScale = massScale(currentMass);
+        rocketGroup.attr("transform", `translate(${width / 2}, ${rocketY}) scale(${currentRocketScale})`);
+        forceArrowGroup.attr("transform", `translate(${width / 2}, ${rocketY})`);
+    }
+
+    function stopAnimation() {
+        if (animationTimer) {
+            animationTimer.stop();
+            animationTimer = null;
+        }
+    }
+
+    function reset() {
+        currentForce = initialForce;
+        currentMass = initialMass;
+        forceSlider.property("value", initialForce);
+        massSlider.property("value", initialMass);
+        forceValue.text(initialForce);
+        massValue.text(initialMass);
+        rocketY = groundLevel;
+        rocketVelocity = 0;
+        stopAnimation();
+        updateVisualization();
+        startAnimation();
+    }
+
+    updateVisualization();
+    startAnimation();
+
+</script>
+
+</body>
+</html>

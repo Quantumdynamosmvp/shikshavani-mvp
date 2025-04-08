@@ -1,0 +1,224 @@
+<meta name='viewport' content='width=device-width, initial-scale=1'/><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ShikshaVani - AI Learning</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #4F46E5;
+            --secondary: #10B981;
+            --background: #0F172A;
+            --card-bg: #1E293B;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', sans-serif;
+        }
+
+        body {
+            background: var(--background);
+            color: white;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            background: linear-gradient(45deg, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+            margin-bottom: 3rem;
+        }
+
+        .subject-card {
+            background: var(--card-bg);
+            border-radius: 1rem;
+            padding: 2rem;
+            transition: transform 0.3s ease;
+            cursor: pointer;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .subject-card:hover {
+            transform: translateY(-5px);
+            border-color: var(--primary);
+        }
+
+        .card-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .card-icon {
+            width: 40px;
+            height: 40px;
+            background: var(--primary);
+            border-radius: 8px;
+            display: grid;
+            place-items: center;
+        }
+
+        .quick-tips {
+            margin-top: 1.5rem;
+            padding-top: 1rem;
+            border-top: 1px dashed rgba(255,255,255,0.1);
+        }
+
+        .tip-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin: 0.5rem 0;
+            font-size: 0.9rem;
+            color: #94A3B8;
+        }
+
+        .cta-section {
+            text-align: center;
+            margin-top: 4rem;
+        }
+
+        .ask-button {
+            background: linear-gradient(45deg, var(--primary), var(--secondary));
+            color: white;
+            border: none;
+            padding: 1.2rem 2.5rem;
+            border-radius: 0.8rem;
+            font-size: 1.1rem;
+            cursor: pointer;
+            transition: transform 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.8rem;
+        }
+
+        .ask-button:hover {
+            transform: scale(1.05);
+        }
+
+        .particles {
+            position: fixed;
+            width: 100vw;
+            height: 100vh;
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        .particle {
+            position: absolute;
+            background: rgba(79, 70, 229, 0.3);
+            border-radius: 50%;
+            animation: particleFloat 20s linear infinite;
+        }
+
+        @keyframes particleFloat {
+            from { transform: translateY(100vh); }
+            to { transform: translateY(-100%); }
+        }
+    </style>
+</head>
+<body>
+    <div class="particles" id="particles"></div>
+    
+    <div class="container">
+        <header class="header">
+            <h1>ShikshaVani AI Tutor</h1>
+            <p>Your 24/7 Learning Companion</p>
+        </header>
+
+        <div class="cards-grid">
+            <!-- Python Card -->
+            <div class="subject-card">
+                <div class="card-header">
+                    <div class="card-icon">
+                        <i class="fab fa-python"></i>
+                    </div>
+                    <h3>Python Programming</h3>
+                </div>
+                <p>Master Python with interactive lessons and real-world projects</p>
+                <div class="quick-tips">
+                    <div class="tip-item">
+                        <i class="fas fa-lightbulb"></i>
+                        Tip: Use list comprehensions for cleaner loops
+                    </div>
+                    <div class="tip-item">
+                        <i class="fas fa-bug"></i>
+                        Common error: Forgetting colons in conditionals
+                    </div>
+                </div>
+            </div>
+
+            <!-- C++ Card -->
+            <div class="subject-card">
+                <div class="card-header">
+                    <div class="card-icon">
+                        <i class="fas fa-file-code"></i>
+                    </div>
+                    <h3>C++ Programming</h3>
+                </div>
+                <p>Learn object-oriented programming and memory management</p>
+                <div class="quick-tips">
+                    <div class="tip-item">
+                        <i class="fas fa-lightbulb"></i>
+                        Tip: Always initialize pointers
+                    </div>
+                    <div class="tip-item">
+                        <i class="fas fa-bug"></i>
+                        Common error: Memory leaks in dynamic allocation
+                    </div>
+                </div>
+            </div>
+
+            <!-- Add more subject cards as needed -->
+        </div>
+        <button class="ask-button" onclick="location.href='{{ url_for('video') }}'">
+            <i class="fas fa-comments"></i>
+            Start Asking Doubts
+        </button>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Simple particle system
+        function createParticles() {
+            const container = document.getElementById('particles');
+            for(let i = 0; i < 30; i++) {
+                const particle = document.createElement('div');
+                particle.className = 'particle';
+                particle.style.left = Math.random() * 100 + '%';
+                particle.style.width = particle.style.height = 
+                    Math.random() * 5 + 2 + 'px';
+                particle.style.animationDelay = Math.random() * 20 + 's';
+                container.appendChild(particle);
+            }
+        }
+        createParticles();
+    </script>
+</body>
+</html>

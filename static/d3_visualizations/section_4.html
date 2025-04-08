@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Evaluating Explanations Demo</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        body {
+            font-family: sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #f0f0f0;
+            margin: 0;
+        }
+        .container {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        svg {
+            border: 1px solid #ccc;
+            background-color: #f9f9f9;
+            border-radius: 4px;
+            display: block;
+            margin: 15px auto;
+        }
+        .explanation-label {
+            font-size: 16px;
+            font-weight: bold;
+            fill: #333;
+        }
+        .factor {
+            cursor: grab;
+            stroke-width: 1.5px;
+        }
+        .factor:active {
+            cursor: grabbing;
+        }
+        .criteria-label {
+            font-size: 12px;
+            fill: #555;
+            text-anchor: middle;
+        }
+        .score-bar-bg {
+            fill: #e0e0e0;
+        }
+        .score-bar {
+            fill: #6baed6;
+            transition: width 0.5s ease-in-out;
+        }
+        .explanation1 .factor-circle { fill: #e41a1c; stroke: #a01214; }
+        .explanation2 .factor-circle { fill: #377eb8; stroke: #25567b; }
+        .explanation2 .factor-weather { fill: #ffcc00; stroke: #b38f00; }
+        .explanation2 .factor-road { fill: #984ea3; stroke: #6a3671; }
+
+        .connection-line {
+            stroke: #aaa;
+            stroke-width: 1px;
+            stroke-dasharray: 3,3;
+        }
+        .crash-site {
+            fill: #d95f02;
+            stroke: #a64900;
+            stroke-width: 2px;
+        }
+        .instructions {
+            font-size: 12px;
+            color: #666;
+            margin-top: 10px;
+        }
+        .toggle-button {
+            padding: 8px 15px;
+            margin: 10px 5px;
+            font-size: 14px;
+            cursor: pointer;
+            border: 1px solid #ccc;
+            background-color: #eee;
+            border-radius: 4px;
+            transition: background-color 0.2s ease;
+        }
+        .toggle-button:hover {
+            background-color: #ddd;
+        }
+        .toggle-button.active {
+            background-color: #6baed6;
+            color: white;
+            border-color: #4a8dbb;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Comparing Explanations for a Car Crash</h2>
+        <div id="explanation-controls">
+             <button id="btn-exp1" class="toggle-button active">Explanation 1 (Simple)</button>
+             <button id="btn-exp2" class="toggle-button">Explanation 2 (Complete)</button>
+        </div>
+        <div id="visualization"></div>
+        <div id="criteria-scores"></div>
+        <div class="instructions">Drag the factors towards the crash site (*) to see how they contribute to the explanation evaluation.</div>
+    </div>
+
+    <script>
+        const svgWidth = 700;
+        const svgHeight = 400;
+        const margin = { top: 20, right: 20, bottom: 80, left: 20 };
+        const width = svgWidth - margin.left - margin.right;
+        const height = svgHeight - margin.top - margin.bottom;
+
+        const crashSitePos = { x: width / 2, y: height / 2 };
+        const closeThreshold = 100;
+
+        let activeExplanation = 1;
+
+        const initialPositions = {
+            exp1: [{ id: 'f1_driverA', label: 'Driver A Fault', type: 'circle', x: 50, y: 50, color: '#e41a1c' }],
+            exp2: [
+                { id: 'f2_driverA', label: 'Driver A Actions', type: 'circle', x: width - 50, y: 50, color: '#377eb8' },
+                { id: 'f2_driverB', label: 'Driver B Actions', type: 'circle', x: 50, y: height - 50, color: '#377eb8' },
+                { id: 'f2_weather', label: 'Weather', type: 'weather', x: width - 50, y: height - 50, color: '#ffcc00' },
+                { id: 'f2_road', label: 'Road Condition', type: 'road', x: width / 2, y: height - 20, color: '#984ea3' },
+            ]
+        };
+
+        let explanationData = {
+            1: JSON.parse(JSON.stringify(initialPositions.exp1)),
+            2: JSON.parse(JSON.stringify(initialPositions.exp2))
+        };
+
+        const svg = d3.select("#visualization")
+            .append("svg")
+            .attr("width", svgWidth)
+            .attr("height", svgHeight)
+            .append("g")
+            .attr("transform", `translate(${margin.left}, ${margin.top})`);
+
+        svg.append("path")
+            .attr("class", "crash-site")
+            .attr("d", d3.symbol(d3.symbolStar, 150))
+            .attr("transform", `translate(${crashSitePos.x}, ${crashSitePos.y})`);
+        svg.append("text")
+            .attr("x", crashSitePos.x)
+            .attr("y", crashSitePos.y + 20)
+            .attr("text-anchor", "middle")
+            .attr("font-size", "10px")
+            .attr("fill", "#555")
+            .text("Crash Site");
+
+        const scoreSvg = d3.select("#criteria-scores")
+            .append("svg")
+            .attr("width", svgWidth)
+            .attr("height", 60)
+            .append("g")
+            .attr("transform", `translate(${margin.left}, 10)`);
+
+        const criteria = ["Completeness", "Conciseness"];
+        const scoreScale = d3.scaleLinear().domain([0, 100]).range([0, 150]);
+
+        const scoreGroups = scoreSvg.selectAll(".score-group")
+            .data(criteria)
+            .enter()
+            .append("g")
+            .attr("class", "score-group")
+            .attr("transform", (d, i) => `translate(${i * (width / criteria.length) + 50}, 0)`);
+
+        scoreGroups.append("text")
+            .attr("class", "criteria-label")
+            .attr("x", 75)
+            .attr("y", 15)
+            .text(d => d);
+
+        scoreGroups.append("rect")
+            .attr("class", "score-bar-bg")
+            .attr("x", 0)
+            .attr("y", 25)
+            .attr("width", scoreScale(100))
+            .attr("height", 15)
+            .attr("rx", 3)
+            .attr("ry", 3);
+
+        scoreGroups.append("rect")
+            .attr("class", d => `score-bar score-${d.toLowerCase()}`)
+            .attr("x", 0)
+            .attr("y", 25)
+            .attr("width", 0)
+            .attr("height", 15)
+            .attr("rx", 3)
+            .attr("ry", 3);
+
+         scoreGroups.append("text")
+            .attr("class", d => `score-text score-text-${d.toLowerCase()}`)
+            .attr("x", scoreScale(100) + 5)
+            .attr("y", 37)
+            .attr("font-size", "12px")
+            .attr("fill", "#333")
+            .text("0%");
+
+        const dragHandler = d3.drag()
+            .on("start", function (event, d) {
+                d3.select(this).raise().attr("stroke", "black").attr("stroke-width", 2.5).style("transform", "scale(1.1)");
+            })
+            .on("drag", function (event, d) {
+                d.x = Math.max(15, Math.min(width - 15, event.x));
+                d.y = Math.max(15, Math.min(height - 15, event.y));
+                d3.select(this).attr("transform", `translate(${d.x}, ${d.y})`);
+                d3.select(`#line-${d.id}`).attr("x1", d.x).attr("y1", d.y);
+                updateScores();
+            })
+            .on("end", function (event, d) {
+                d3.select(this).attr("stroke", d.color).attr("stroke-width", 1.5).style("transform", "scale(1)");
+                updateScores();
+            });
+
+        function drawExplanationElements(expNumber) {
+            const data = explanationData[expNumber];
+
+            svg.selectAll(`.explanation-group:not(.explanation${expNumber})`)
+                .transition()
+                .duration(250)
+                .style("opacity", 0)
+                .remove();
+
+            let group = svg.select(`.explanation-group.explanation${expNumber}`);
+
+            if (group.empty()) {
+                group = svg.append("g")
+                    .attr("class", `explanation-group explanation${expNumber}`)
+                    .style("opacity", 0);
+
+                group.transition()
+                    .duration(500)
+                    .style("opacity", 1);
+
+                group.selectAll(".connection-line")
+                    .data(data, d => d.id)
+                    .join("line")
+                    .attr("class", "connection-line")
+                    .attr("id", d => `line-${d.id}`)
+                    .attr("x1", d => d.x)
+                    .attr("y1", d => d.y)
+                    .attr("x2", crashSitePos.x)
+                    .attr("y2", crashSitePos.y);
+
+                const factors = group.selectAll(".factor")
+                    .data(data, d => d.id)
+                    .enter()
+                    .append("g")
+                    .attr("class", "factor")
+                    .attr("transform", d => `translate(${d.x}, ${d.y})`)
+                    .call(dragHandler)
+                   .each(function(d) {
+                        const el = d3.select(this);
+                        if (d.type === 'circle') {
+                            el.append("circle")
+                                .attr("r", 15)
+                                .attr("class", "factor-circle")
+                                .style("fill", d.color)
+                                .style("stroke", d3.rgb(d.color).darker(1.5));
+                        } else if (d.type === 'weather') {
+                             el.append("circle")
+                                .attr("r", 15)
+                                .attr("class", "factor-weather")
+                                 .style("fill", d.color)
+                                 .style("stroke", d3.rgb(d.color).darker(1.5));
+                            el.append("text").text("☁️").attr("dy", ".35em").attr("text-anchor", "middle").attr("font-size", "16px").style("pointer-events", "none");
+
+                        } else if (d.type === 'road') {
+                             el.append("circle")
+                                .attr("r", 15)
+                                .attr("class", "factor-road")
+                                 .style("fill", d.color)
+                                 .style("stroke", d3.rgb(d.color).darker(1.5));
+                            el.append("text").text("〰️").attr("dy", ".35em").attr("text-anchor", "middle").attr("font-size", "16px").style("pointer-events", "none");
+                        }
+
+                        el.append("text")
+                            .attr("y", 25)
+                            .attr("text-anchor", "middle")
+                            .attr("font-size", "10px")
+                            .attr("fill", "#333")
+                            .style("pointer-events", "none")
+                            .text(d => d.label);
+                    });
+
+            } else {
+                 group.selectAll(".connection-line")
+                    .data(data, d => d.id)
+                    .join("line")
+                    .attr("class", "connection-line")
+                    .attr("id", d => `line-${d.id}`)
+                    .attr("x1", d => d.x)
+                    .attr("y1", d => d.y)
+                    .attr("x2", crashSitePos.x)
+                    .attr("y2", crashSitePos.y);
+            }
+            updateScores();
+        }
+
+        function updateScores() {
+            const data = explanationData[activeExplanation];
+            let completeness = 0;
+            let conciseness = 0;
+            let factorsClose = 0;
+
+            data.forEach(d => {
+                const dist = Math.sqrt(Math.pow(d.x - crashSitePos.x, 2) + Math.pow(d.y - crashSitePos.y, 2));
+                if (dist < closeThreshold) {
+                    factorsClose++;
+                }
+            });
+
+            if (activeExplanation === 1) {
+                completeness = (factorsClose > 0) ? 25 : 0;
+                conciseness = (factorsClose > 0) ? 90 : 100;
+            } else {
+                completeness = Math.min(100, factorsClose * (100 / data.length));
+                conciseness = Math.max(0, 100 - (factorsClose * 15));
+                 if (factorsClose === 0) conciseness = 100;
+            }
+
+            scoreSvg.select(".score-completeness")
+                .transition()
+                .duration(500)
+                .ease(d3.easeCubicInOut)
+                .attr("width", scoreScale(completeness));
+            scoreSvg.select(".score-text-completeness")
+                 .text(`${Math.round(completeness)}%`);
+
+
+            scoreSvg.select(".score-conciseness")
+                .transition()
+                .duration(500)
+                .ease(d3.easeCubicInOut)
+                .attr("width", scoreScale(conciseness));
+             scoreSvg.select(".score-text-conciseness")
+                 .text(`${Math.round(conciseness)}%`);
+        }
+
+        function switchExplanation(expNumber) {
+            if (activeExplanation === expNumber) return;
+
+            activeExplanation = expNumber;
+
+            explanationData[activeExplanation] = JSON.parse(JSON.stringify(initialPositions[`exp${activeExplanation}`]));
+
+            d3.selectAll(".toggle-button").classed("active", false);
+            d3.select(`#btn-exp${expNumber}`).classed("active", true);
+
+            drawExplanationElements(activeExplanation);
+        }
+
+        drawExplanationElements(activeExplanation);
+        d3.select("#btn-exp1").classed("active", true);
+
+        d3.select("#btn-exp1").on("click", () => switchExplanation(1));
+        d3.select("#btn-exp2").on("click", () => switchExplanation(2));
+
+    </script>
+</body>
+</html>

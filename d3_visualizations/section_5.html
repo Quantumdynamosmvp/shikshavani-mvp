@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Newton's Third Law - Interactive Demo</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            min-height: 100vh;
+            background-color: #f0f4f8;
+            margin: 0;
+        }
+        #visualization {
+            background-color: #ffffff;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            border-radius: 8px;
+            cursor: grab;
+        }
+        .label {
+            font-size: 12px;
+            font-weight: bold;
+            fill: #333;
+            text-anchor: middle;
+            pointer-events: none;
+            user-select: none;
+        }
+        .force-label {
+            font-size: 11px;
+            font-weight: bold;
+            text-anchor: middle;
+            pointer-events: none;
+            user-select: none;
+        }
+        .action-force {
+            stroke: #e41a1c;
+            fill: #e41a1c;
+        }
+        .reaction-force {
+            stroke: #377eb8;
+            fill: #377eb8;
+        }
+        .object-a {
+            fill: #ff7f00;
+            stroke: #e66a00;
+            stroke-width: 2px;
+        }
+        .object-b {
+            fill: #984ea3;
+            stroke: #7a3d80;
+            stroke-width: 2px;
+        }
+        marker path {
+            fill: inherit;
+        }
+    </style>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+</head>
+<body>
+
+<h1>Newton's Third Law: Action-Reaction</h1>
+<p>Drag Object A towards Object B to see the force pair.</p>
+<div id="visualization"></div>
+
+<script>
+    const config = {
+        width: 600,
+        height: 350,
+        objectRadius: 35,
+        interactionDistance: 75,
+        forceArrowLength: 60,
+        forceArrowOffset: 10,
+        arrowHeadSize: 6,
+        transitionDuration: 250,
+        colors: {
+            objectA: '#ff7f00',
+            objectB: '#984ea3',
+            actionForce: '#e41a1c',
+            reactionForce: '#377eb8',
+            label: '#333',
+            background: '#ffffff'
+        }
+    };
+
+    const svg = d3.select("#visualization")
+        .append("svg")
+        .attr("width", config.width)
+        .attr("height", config.height)
+        .style("background-color", config.colors.background);
+
+    const defs = svg.append("defs");
+
+    const arrowAction = defs.append("marker")
+        .attr("id", "arrow-action")
+        .attr("viewBox", [0, 0, config.arrowHeadSize, config.arrowHeadSize])
+        .attr("refX", config.arrowHeadSize / 2)
+        .attr("refY", config.arrowHeadSize / 2)
+        .attr("markerWidth", config.arrowHeadSize)
+        .attr("markerHeight", config.arrowHeadSize)
+        .attr("orient", "auto-start-reverse")
+        .append("path")
+        .attr("d", d3.line()([[0, 0], [0, config.arrowHeadSize], [config.arrowHeadSize, config.arrowHeadSize / 2]]))
+        .attr("fill", config.colors.actionForce);
+
+    const arrowReaction = defs.append("marker")
+        .attr("id", "arrow-reaction")
+        .attr("viewBox", [0, 0, config.arrowHeadSize, config.arrowHeadSize])
+        .attr("refX", config.arrowHeadSize / 2)
+        .attr("refY", config.arrowHeadSize / 2)
+        .attr("markerWidth", config.arrowHeadSize)
+        .attr("markerHeight", config.arrowHeadSize)
+        .attr("orient", "auto-start-reverse")
+        .append("path")
+        .attr("d", d3.line()([[0, 0], [0, config.arrowHeadSize], [config.arrowHeadSize, config.arrowHeadSize / 2]]))
+        .attr("fill", config.colors.reactionForce);
+
+    const filter = defs.append("filter")
+        .attr("id", "glow")
+        .attr("x", "-50%")
+        .attr("y", "-50%")
+        .attr("width", "200%")
+        .attr("height", "200%");
+
+    filter.append("feGaussianBlur")
+        .attr("stdDeviation", "4")
+        .attr("result", "coloredBlur");
+
+    const feMerge = filter.append("feMerge");
+    feMerge.append("feMergeNode").attr("in", "coloredBlur");
+    feMerge.append("feMergeNode").attr("in", "SourceGraphic");
+
+    const objects = [
+        { id: 'A', x: config.width * 0.3, y: config.height / 2, radius: config.objectRadius, color: config.colors.objectA, class: 'object-a', label: 'Object A' },
+        { id: 'B', x: config.width * 0.7, y: config.height / 2, radius: config.objectRadius, color: config.colors.objectB, class: 'object-b', label: 'Object B', fixed: true }
+    ];
+
+    const objectGroups = svg.selectAll(".object-group")
+        .data(objects)
+        .enter()
+        .append("g")
+        .attr("class", "object-group")
+        .attr("transform", d => `translate(${d.x}, ${d.y})`);
+
+    objectGroups.append("circle")
+        .attr("r", d => d.radius)
+        .attr("fill", d => d.color)
+        .attr("class", d => d.class)
+        .style("stroke", d => d3.color(d.color).darker(0.5))
+        .style("stroke-width", "2px");
+
+    objectGroups.append("text")
+        .attr("class", "label object-label")
+        .attr("dy", ".35em")
+        .text(d => d.label);
+
+    const forceGroup = svg.append("g")
+        .attr("class", "force-elements")
+        .style("opacity", 0);
+
+    const actionForceLine = forceGroup.append("line").attr("id", "action-force-line").attr("class", "action-force").style("stroke-width", 2.5);
+    const reactionForceLine = forceGroup.append("line").attr("id", "reaction-force-line").attr("class", "reaction-force").style("stroke-width", 2.5);
+    const actionForceLabel = forceGroup.append("text").attr("id", "action-force-label").attr("class", "force-label action-force");
+    const reactionForceLabel = forceGroup.append("text").attr("id", "reaction-force-label").attr("class", "force-label reaction-force");
+
+    const dragHandler = d3.drag()
+        .on("start", function(event, d) {
+            d3.select(this).raise();
+            d3.select("#visualization").style("cursor", "grabbing");
+            d3.select(this).select("circle")
+              .transition().duration(100)
+              .attr("filter", "url(#glow)");
+        })
+        .on("drag", function(event, d) {
+            d.x = Math.max(d.radius, Math.min(config.width - d.radius, event.x));
+            d.y = Math.max(d.radius, Math.min(config.height - d.radius, event.y));
+            d3.select(this).attr("transform", `translate(${d.x}, ${d.y})`);
+            updateForces();
+        })
+        .on("end", function(event, d) {
+            d3.select("#visualization").style("cursor", "grab");
+             d3.select(this).select("circle")
+                .transition().duration(150)
+                .attr("filter", null);
+        });
+
+    objectGroups.filter(d => d.id === 'A').call(dragHandler);
+
+    function updateForces() {
+        const objA = objects.find(d => d.id === 'A');
+        const objB = objects.find(d => d.id === 'B');
+
+        const dx = objB.x - objA.x;
+        const dy = objB.y - objA.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        const angle = Math.atan2(dy, dx);
+
+        const interacting = distance < config.interactionDistance;
+
+        forceGroup.transition()
+            .duration(config.transitionDuration)
+            .ease(d3.easeQuadOut)
+            .style("opacity", interacting ? 1 : 0);
+
+        if (interacting) {
+            const actionStartX = objB.x - Math.cos(angle) * (objB.radius + config.forceArrowOffset);
+            const actionStartY = objB.y - Math.sin(angle) * (objB.radius + config.forceArrowOffset);
+            const actionEndX = actionStartX - Math.cos(angle) * config.forceArrowLength;
+            const actionEndY = actionStartY - Math.sin(angle) * config.forceArrowLength;
+
+            const reactionStartX = objA.x + Math.cos(angle) * (objA.radius + config.forceArrowOffset);
+            const reactionStartY = objA.y + Math.sin(angle) * (objA.radius + config.forceArrowOffset);
+            const reactionEndX = reactionStartX + Math.cos(angle) * config.forceArrowLength;
+            const reactionEndY = reactionStartY + Math.sin(angle) * config.forceArrowLength;
+
+            actionForceLine
+                .attr("x1", actionStartX)
+                .attr("y1", actionStartY)
+                .attr("x2", actionEndX)
+                .attr("y2", actionEndY)
+                .attr("marker-end", "url(#arrow-action)");
+
+            reactionForceLine
+                .attr("x1", reactionStartX)
+                .attr("y1", reactionStartY)
+                .attr("x2", reactionEndX)
+                .attr("y2", reactionEndY)
+                .attr("marker-end", "url(#arrow-reaction)");
+
+            const labelOffset = 15;
+            actionForceLabel
+                .attr("x", actionEndX - Math.cos(angle) * labelOffset)
+                .attr("y", actionEndY - Math.sin(angle) * labelOffset - 3)
+                .text("Action on B")
+                .attr("fill", config.colors.actionForce);
+
+            reactionForceLabel
+                .attr("x", reactionEndX + Math.cos(angle) * labelOffset)
+                .attr("y", reactionEndY + Math.sin(angle) * labelOffset - 3)
+                .text("Reaction on A")
+                .attr("fill", config.colors.reactionForce);
+        }
+    }
+
+</script>
+
+</body>
+</html>

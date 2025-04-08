@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Inertia Simulation (Newton's First Law)</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        body {
+            font-family: sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f0f0f0;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 {
+            color: #333;
+        }
+        .simulation-container {
+            background-color: #e0f2f7;
+            border: 1px solid #b0bec5;
+            box-shadow: 2px 2px 8px rgba(0,0,0,0.1);
+            position: relative;
+        }
+        .object {
+            cursor: grab;
+            stroke-width: 1px;
+            stroke: #333;
+        }
+        .object:active {
+            cursor: grabbing;
+        }
+        .label {
+            font-size: 10px;
+            fill: #000;
+            text-anchor: middle;
+            pointer-events: none;
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+        }
+        .controls {
+            margin-top: 15px;
+            padding: 10px;
+            background-color: #fff;
+            border-radius: 5px;
+            box-shadow: 1px 1px 5px rgba(0,0,0,0.1);
+        }
+         button {
+            margin: 0 5px;
+            padding: 8px 15px;
+            font-size: 14px;
+            cursor: pointer;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            background-color: #f8f8f8;
+        }
+        button:hover {
+            background-color: #e8e8e8;
+        }
+        .tooltip {
+            position: absolute;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 5px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s ease-in-out;
+        }
+    </style>
+</head>
+<body>
+    <h1>Newton's First Law: Inertia Demonstration</h1>
+    <div class="simulation-container">
+        <svg id="inertia-canvas" width="800" height="400"></svg>
+    </div>
+    <div class="controls">
+        <button id="reset-button">Reset Objects</button>
+        <p>Click and drag an object to give it a push. Notice how harder it is to start/stop the heavier object.</p>
+    </div>
+    <div class="tooltip" id="tooltip">Drag to apply force</div>
+
+<script>
+    const width = 800;
+    const height = 400;
+    const svg = d3.select("#inertia-canvas");
+    const tooltip = d3.select("#tooltip");
+
+    const initialObjectData = [
+        { id: 1, x: 150, y: 200, vx: 0, vy: 0, mass: 1, radius: 20, color: "#4fc3f7", label: "Light (Mass: 1)" },
+        { id: 2, x: 650, y: 200, vx: 0, vy: 0, mass: 10, radius: 50, color: "#e57373", label: "Heavy (Mass: 10)" }
+    ];
+
+    let objectData = JSON.parse(JSON.stringify(initialObjectData));
+
+    let simulation;
+    let dragStartX, dragStartY, draggedObject = null;
+
+    function drawObjects() {
+        const objects = svg.selectAll(".object-group")
+            .data(objectData, d => d.id)
+            .join(
+                enter => {
+                    const group = enter.append("g")
+                        .attr("class", "object-group")
+                        .attr("transform", d => `translate(${d.x},${d.y})`)
+                        .call(d3.drag()
+                            .on("start", dragStarted)
+                            .on("drag", dragged)
+                            .on("end", dragEnded)
+                        )
+                        .on("mouseover", showTooltip)
+                        .on("mouseout", hideTooltip);
+
+                    group.append("circle")
+                        .attr("class", "object")
+                        .attr("r", d => d.radius)
+                        .attr("fill", d => d.color);
+
+                    group.append("text")
+                        .attr("class", "label")
+                        .attr("dy", ".3em")
+                        .text(d => d.label);
+
+                    return group;
+                },
+                update => {
+                    update.attr("transform", d => `translate(${d.x},${d.y})`);
+                    update.select(".object")
+                           .attr("r", d => d.radius)
+                           .attr("fill", d => d.color);
+                    update.select(".label")
+                           .text(d => d.label);
+                    return update;
+                },
+                exit => exit.remove()
+            );
+    }
+
+    function startSimulation() {
+        if (simulation) simulation.stop();
+
+        simulation = d3.timer(elapsed => {
+            objectData.forEach(d => {
+                if (d.vx !== 0 || d.vy !== 0) {
+                    d.x += d.vx * 0.1;
+                    d.y += d.vy * 0.1;
+
+                    if (d.x + d.radius > width) { d.x = width - d.radius; d.vx *= -0.9; }
+                    if (d.x - d.radius < 0)    { d.x = d.radius; d.vx *= -0.9; }
+                    if (d.y + d.radius > height){ d.y = height - d.radius; d.vy *= -0.9; }
+                    if (d.y - d.radius < 0)    { d.y = d.radius; d.vy *= -0.9; }
+
+                    const speedThreshold = 0.05;
+                     if (Math.abs(d.vx) < speedThreshold) d.vx = 0;
+                     if (Math.abs(d.vy) < speedThreshold) d.vy = 0;
+                }
+            });
+
+            svg.selectAll(".object-group")
+               .attr("transform", d => `translate(${d.x},${d.y})`);
+        });
+    }
+
+    function dragStarted(event, d) {
+        d.vx = 0;
+        d.vy = 0;
+        if (simulation) simulation.stop();
+
+        d3.select(this).raise().select(".object").attr("stroke-width", 2.5).attr("stroke", "#111");
+        dragStartX = event.x;
+        dragStartY = event.y;
+        draggedObject = d;
+        hideTooltip();
+    }
+
+    function dragged(event, d) {
+        d.x = event.x;
+        d.y = event.y;
+        d3.select(this).attr("transform", `translate(${d.x},${d.y})`);
+    }
+
+    function dragEnded(event, d) {
+        d3.select(this).select(".object").attr("stroke-width", 1).attr("stroke", "#333");
+
+        const dragEndX = event.x;
+        const dragEndY = event.y;
+        const impulseScale = 0.2;
+
+        d.vx = (dragEndX - dragStartX) * impulseScale / d.mass;
+        d.vy = (dragEndY - dragStartY) * impulseScale / d.mass;
+
+        draggedObject = null;
+        startSimulation();
+        showTooltip(event, d);
+    }
+
+    function showTooltip(event, d) {
+        if (draggedObject) return;
+
+        tooltip.style("opacity", 1)
+               .style("left", (event.pageX + 10) + "px")
+               .style("top", (event.pageY - 20) + "px");
+    }
+
+    function hideTooltip() {
+        tooltip.style("opacity", 0);
+    }
+
+    d3.select("#reset-button").on("click", () => {
+        if (simulation) simulation.stop();
+        objectData = JSON.parse(JSON.stringify(initialObjectData));
+        drawObjects();
+        startSimulation();
+    });
+
+    drawObjects();
+    startSimulation();
+
+</script>
+
+</body>
+</html>

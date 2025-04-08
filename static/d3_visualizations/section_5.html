@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Explanation Components Demo</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f8f9fa;
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        h1 {
+            color: #0056b3;
+        }
+        .visualization-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            max-width: 1200px;
+        }
+        .components-area {
+            margin-bottom: 30px;
+            padding: 15px;
+            background-color: #e9ecef;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        .components-area h3 {
+            margin-top: 0;
+            margin-bottom: 15px;
+            color: #495057;
+        }
+        .fields-area {
+            display: flex;
+            justify-content: space-around;
+            width: 100%;
+            gap: 20px;
+        }
+        .field-column {
+            flex: 1;
+            padding: 15px;
+            border: 2px dashed #adb5bd;
+            border-radius: 8px;
+            min-height: 300px;
+            background-color: #ffffff;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            transition: background-color 0.3s ease, border-color 0.3s ease;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .field-column.drop-target {
+            background-color: #e2e6ea;
+            border-color: #007bff;
+        }
+        .field-title {
+            font-weight: bold;
+            color: #0056b3;
+            margin-bottom: 15px;
+            text-align: center;
+            width: 100%;
+        }
+        .component-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            width: 90%;
+            text-align: center;
+        }
+        .component-list li {
+            background-color: #f1f3f5;
+            border: 1px solid #ced4da;
+            border-radius: 4px;
+            padding: 5px 8px;
+            margin-bottom: 5px;
+            font-size: 0.9em;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: opacity 0.5s ease, transform 0.5s ease;
+            cursor: grab;
+        }
+        .component-list li.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .draggable-component {
+            cursor: grab;
+            transition: transform 0.2s ease-in-out, filter 0.2s ease-in-out;
+        }
+        .draggable-component:hover {
+            transform: scale(1.1);
+            filter: brightness(1.1);
+        }
+        .draggable-component:active {
+            cursor: grabbing;
+            transform: scale(1.05);
+            filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3));
+            z-index: 1000;
+        }
+
+        .component-Evidence { fill: #28a745; }
+        .component-Clarity { fill: #007bff; }
+        .component-Structure { fill: #ffc107; }
+        .component-Audience { fill: #dc3545; }
+        .component-Visuals { fill: #17a2b8; }
+        .component-Logic { fill: #6f42c1; }
+
+        .component-text {
+            font-size: 12px;
+            fill: #fff;
+            text-anchor: middle;
+            dominant-baseline: central;
+            pointer-events: none;
+            font-weight: bold;
+        }
+
+    </style>
+</head>
+<body>
+
+    <h1>Interactive Explanation Components Demo</h1>
+    <p>Drag explanation components to the different fields below to see how they might be emphasized. Compare the typical components across fields. Drag components out of a field to remove them.</p>
+
+    <div class="visualization-container">
+        <div class="components-area">
+            <h3>Explanation Components (Drag Me!)</h3>
+            <svg id="components-svg" width="600" height="80"></svg>
+        </div>
+        <div class="fields-area">
+            <div class="field-column" id="field-science">
+                <div class="field-title">Science</div>
+                <ul class="component-list"></ul>
+            </div>
+            <div class="field-column" id="field-law">
+                <div class="field-title">Law</div>
+                 <ul class="component-list"></ul>
+            </div>
+            <div class="field-column" id="field-medicine">
+                <div class="field-title">Medicine</div>
+                 <ul class="component-list"></ul>
+            </div>
+            <div class="field-column" id="field-tech-writing">
+                <div class="field-title">Tech Writing</div>
+                 <ul class="component-list"></ul>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script>
+        const componentsData = [
+            { id: 'Evidence', label: 'Evidence', color: '#28a745', initialX: 50, y: 40, radius: 30 },
+            { id: 'Clarity', label: 'Clarity', color: '#007bff', initialX: 150, y: 40, radius: 30 },
+            { id: 'Structure', label: 'Structure', color: '#ffc107', initialX: 250, y: 40, radius: 30 },
+            { id: 'Audience', label: 'Audience', color: '#dc3545', initialX: 350, y: 40, radius: 30 },
+            { id: 'Visuals', label: 'Visuals', color: '#17a2b8', initialX: 450, y: 40, radius: 30 },
+            { id: 'Logic', label: 'Logic', color: '#6f42c1', initialX: 550, y: 40, radius: 30 }
+        ];
+
+        const fields = [
+            { id: 'field-science', element: d3.select('#field-science'), components: new Set() },
+            { id: 'field-law', element: d3.select('#field-law'), components: new Set() },
+            { id: 'field-medicine', element: d3.select('#field-medicine'), components: new Set() },
+            { id: 'field-tech-writing', element: d3.select('#field-tech-writing'), components: new Set() }
+        ];
+
+        const svgComponents = d3.select('#components-svg');
+
+        const componentsGroup = svgComponents.selectAll('g.component-group')
+            .data(componentsData, d => d.id)
+            .join('g')
+            .attr('class', 'component-group')
+            .attr('transform', d => `translate(${d.initialX}, ${d.y})`);
+
+        componentsGroup.append('circle')
+            .attr('r', d => d.radius)
+            .attr('fill', d => d.color)
+            .attr('class', d => `draggable-component component-${d.id}`)
+            .style('filter', 'drop-shadow(0 2px 3px rgba(0,0,0,0.2))');
+
+        componentsGroup.append('text')
+            .attr('class', 'component-text')
+            .text(d => d.label);
+
+        const drag = d3.drag()
+            .on('start', dragstarted)
+            .on('drag', dragged)
+            .on('end', dragended);
+
+        svgComponents.selectAll('g.component-group').call(drag);
+
+        let draggedElement = null;
+        let initialX, initialY;
+
+        function dragstarted(event, d) {
+            draggedElement = d3.select(this);
+            initialX = d.initialX;
+            initialY = d.y;
+            draggedElement
+                .raise()
+                .select('circle')
+                .transition()
+                .duration(150)
+                .ease(d3.easeCubicOut)
+                .attr('r', d.radius * 1.1)
+                .style('filter', 'drop-shadow(0 4px 8px rgba(0,0,0,0.3))');
+            draggedElement.select('text').style('font-weight', 'bold');
+        }
+
+        function dragged(event, d) {
+            const [svgX, svgY] = d3.pointer(event, svgComponents.node());
+            draggedElement.attr('transform', `translate(${svgX}, ${svgY})`);
+
+            const globalCoords = { x: event.sourceEvent.clientX, y: event.sourceEvent.clientY };
+            fields.forEach(field => {
+                const fieldRect = field.element.node().getBoundingClientRect();
+                field.element.classed('drop-target', globalCoords.x >= fieldRect.left && globalCoords.x <= fieldRect.right &&
+                    globalCoords.y >= fieldRect.top && globalCoords.y <= fieldRect.bottom);
+            });
+        }
+
+        function dragended(event, d) {
+            const finalElement = draggedElement;
+
+            finalElement.select('circle')
+                .transition()
+                .duration(300)
+                .ease(d3.easeBackOut.overshoot(1.7))
+                .attr('r', d.radius)
+                .style('filter', 'drop-shadow(0 2px 3px rgba(0,0,0,0.2))');
+            finalElement.select('text').style('font-weight', 'bold');
+
+            let dropped = false;
+            const globalCoords = { x: event.sourceEvent.clientX, y: event.sourceEvent.clientY };
+
+            fields.forEach(field => {
+                const fieldRect = field.element.node().getBoundingClientRect();
+                field.element.classed('drop-target', false);
+
+                if (globalCoords.x >= fieldRect.left && globalCoords.x <= fieldRect.right &&
+                    globalCoords.y >= fieldRect.top && globalCoords.y <= fieldRect.bottom) {
+                    if (!field.components.has(d.id)) {
+                        field.components.add(d.id);
+                        updateFieldList(field);
+                        dropped = true;
+                    }
+                }
+            });
+
+            finalElement.transition()
+                .duration(500)
+                .ease(d3.easeBackOut.overshoot(1.7))
+                .attr('transform', `translate(${initialX}, ${initialY})`)
+                .on('end', () => {
+                    finalElement.select('text').style('font-weight', 'bold');
+                });
+
+
+            draggedElement = null;
+        }
+
+        function updateFieldList(field) {
+            const list = field.element.select('.component-list');
+            const listItems = list.selectAll('li')
+                .data(Array.from(field.components).sort(), d => d);
+
+            listItems.exit()
+                .transition()
+                .duration(300)
+                .ease(d3.easeCubicIn)
+                .style('opacity', 0)
+                .attr('transform', 'translateX(-20px)')
+                .remove();
+
+            const enterItems = listItems.enter()
+                .append('li')
+                .text(d => d)
+                .attr('data-id', d => d)
+                .call(d3.drag()
+                    .on('start', listItemDragStart)
+                    .on('drag', listItemDragged)
+                    .on('end', listItemDragEnd))
+                .style('opacity', 0)
+                .style('transform', 'translateY(10px)');
+
+            enterItems.merge(listItems)
+                .transition()
+                .duration(500)
+                .delay((d, i) => i * 50)
+                .ease(d3.easeCubicOut)
+                .style('opacity', 1)
+                .style('transform', 'translateY(0)')
+                .attr('class', 'visible');
+        }
+
+        let draggedListItem = null;
+        let originField = null;
+
+        function listItemDragStart(event, d) {
+            draggedListItem = d3.select(this);
+            originField = fields.find(f => f.element.node() === draggedListItem.node().closest('.field-column'));
+
+            draggedListItem
+                .style('cursor', 'grabbing')
+                .style('background-color', '#ced4da')
+                .style('z-index', 1001)
+                .raise();
+
+            if (originField) {
+                originField.element.style('border-style', 'solid');
+            }
+        }
+
+        function listItemDragged(event, d) {
+            const [x, y] = d3.pointer(event, document.body);
+            draggedListItem.style('transform', `translate(${x - event.x}px, ${y - event.y}px)`);
+        }
+
+        function listItemDragEnd(event, d) {
+            const finalField = originField;
+
+            draggedListItem
+                .style('cursor', 'grab')
+                .style('background-color', null)
+                .style('z-index', null)
+                .style('transform', null);
+
+            const columnRect = finalField.element.node().getBoundingClientRect();
+            const globalCoords = { x: event.sourceEvent.clientX, y: event.sourceEvent.clientY };
+
+            let droppedOutside = !(globalCoords.x >= columnRect.left && globalCoords.x <= columnRect.right &&
+                                   globalCoords.y >= columnRect.top && globalCoords.y <= columnRect.bottom);
+
+            if (droppedOutside) {
+                finalField.components.delete(d);
+                updateFieldList(finalField);
+            }
+
+            if (finalField) {
+                finalField.element.style('border-style', 'dashed');
+            }
+
+            draggedListItem = null;
+            originField = null;
+        }
+
+
+    </script>
+
+</body>
+</html>

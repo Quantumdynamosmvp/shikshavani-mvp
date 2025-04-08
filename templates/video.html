@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shikshavani - Next-Gen AI Tutor</title>
+    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #8a63f2;
+            --secondary: #00e6f0;
+            --accent: #ff6bff;
+            --background: #0a0f24;
+            --text: #f0f4ff;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Chakra Petch', sans-serif;
+        }
+
+        body {
+            background: var(--background);
+            color: var(--text);
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 1.5rem;
+            position: relative;
+        }
+
+        /* Galactic Header */
+        .header {
+            text-align: center;
+            padding: 2rem;
+            margin-bottom: 1.5rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, 
+                rgba(var(--primary-rgb), 0.1) 0%, 
+                transparent 70%);
+            pointer-events: none;
+            animation: cosmicPulse 8s infinite linear;
+        }
+
+        @keyframes cosmicPulse {
+            0% { transform: translate(-50%, -50%) scale(0.8); opacity: 0.2; }
+            50% { transform: translate(-50%, -50%) scale(1.2); opacity: 0.4; }
+            100% { transform: translate(-50%, -50%) scale(0.8); opacity: 0.2; }
+        }
+
+        .header h1 {
+            font-size: 3.5rem;
+            background: linear-gradient(45deg, var(--primary), var(--secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 0 0 30px rgba(138, 99, 242, 0.4);
+            position: relative;
+            z-index: 1;
+            letter-spacing: -2px;
+        }
+
+        /* Quantum Chat Container */
+        .chat-container {
+            flex: 1;
+            background: rgba(10, 15, 36, 0.95);
+            border: 2px solid rgba(138, 99, 242, 0.3);
+            border-radius: 2rem;
+            backdrop-filter: blur(20px);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            box-shadow: 0 0 60px rgba(138, 99, 242, 0.2);
+            position: relative;
+        }
+
+        /* Holographic Messages */
+        .messages {
+            flex: 1;
+            padding: 2rem;
+            overflow-y: auto;
+            scroll-behavior: smooth;
+            position: relative;
+        }
+
+        .message {
+            max-width: 75%;
+            margin: 1.25rem 0;
+            padding: 1.5rem;
+            border-radius: 1.5rem;
+            position: relative;
+            transform-origin: bottom;
+            animation: quantumEntrance 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+            backdrop-filter: blur(5px);
+        }
+
+        @keyframes quantumEntrance {
+            0% { transform: scale(0) rotateX(90deg); opacity: 0; }
+            100% { transform: scale(1) rotateX(0); opacity: 1; }
+        }
+
+        .user-message {
+            background: linear-gradient(135deg, 
+                rgba(138, 99, 242, 0.9), 
+                rgba(0, 230, 240, 0.7));
+            margin-left: auto;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 10px 30px -10px var(--primary);
+        }
+
+        .bot-message {
+            background: rgba(20, 25, 50, 0.8);
+            border: 1px solid rgba(138, 99, 242, 0.3);
+            margin-right: auto;
+            box-shadow: 0 10px 30px -10px rgba(0, 230, 240, 0.2);
+        }
+
+        /* Neural Input Interface */
+        .input-container {
+            padding: 1.5rem 2rem;
+            background: rgba(15, 20, 40, 0.98);
+            border-top: 2px solid rgba(138, 99, 242, 0.2);
+            display: flex;
+            gap: 1.5rem;
+            position: sticky;
+            bottom: 0;
+            backdrop-filter: blur(20px);
+        }
+
+        .input-box {
+            flex: 1;
+            padding: 1.25rem 2rem;
+            border: none;
+            border-radius: 1.5rem;
+            background: rgba(30, 35, 60, 0.8);
+            color: var(--text);
+            font-size: 1.1rem;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 1px solid transparent;
+        }
+
+        .input-box:focus {
+            outline: none;
+            border: 1px solid var(--primary);
+            box-shadow: 0 0 0 3px rgba(138, 99, 242, 0.2);
+        }
+
+        /* Hyperdrive Button */
+        .send-btn {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            border: none;
+            padding: 1.25rem 2.5rem;
+            border-radius: 1.5rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .send-btn::before {
+            content: '';
+            position: absolute;
+            top: -100%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: linear-gradient(45deg,
+                transparent,
+                rgba(255, 255, 255, 0.2),
+                transparent);
+            transform: rotate(45deg);
+            transition: all 0.5s ease;
+        }
+
+        .send-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px -10px var(--primary);
+        }
+
+        .send-btn:hover::before {
+            left: 150%;
+        }
+
+        /* Quantum Loading Animation */
+        .quantum-loader {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 2rem;
+            position: relative;
+        }
+
+        .holo-spinner {
+            width: 80px;
+            height: 80px;
+            position: relative;
+            animation: quantumSpin 2.5s infinite linear;
+        }
+
+        .holo-spinner::before,
+        .holo-spinner::after {
+            content: '';
+            position: absolute;
+            border: 3px solid transparent;
+            border-radius: 50%;
+            animation: holoPulse 1.5s infinite ease-in-out;
+        }
+
+        .holo-spinner::before {
+            width: 100%;
+            height: 100%;
+            border-top-color: var(--primary);
+            border-bottom-color: var(--secondary);
+        }
+
+        .holo-spinner::after {
+            width: 70%;
+            height: 70%;
+            top: 15%;
+            left: 15%;
+            border-left-color: var(--accent);
+            border-right-color: var(--accent);
+            animation-delay: -0.5s;
+        }
+
+        @keyframes quantumSpin {
+            to { transform: rotate(360deg); }
+        }
+
+        @keyframes holoPulse {
+            0% { transform: scale(0.8); opacity: 0.6; }
+            50% { transform: scale(1.2); opacity: 1; }
+            100% { transform: scale(0.8); opacity: 0.6; }
+        }
+
+        /* Processing Message Styles */
+        .processing-message {
+            background: rgba(20, 25, 50, 0.8);
+            padding: 1.5rem;
+            border-radius: 1rem;
+        }
+
+        .processing-content {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .progress-container {
+            margin-top: 1rem;
+        }
+
+        .progress-bar {
+            height: 8px;
+            background: rgba(138, 99, 242, 0.2);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 0.5rem;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary), var(--secondary));
+            transition: width 0.3s ease;
+        }
+
+        .progress-text {
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+
+        .time-remaining {
+            font-size: 0.8rem;
+            opacity: 0.7;
+            margin-top: 0.5rem;
+        }
+
+        .progress-note {
+            font-size: 0.8rem;
+            opacity: 0.6;
+            margin-top: 1rem;
+        }
+
+        .holo-spinner.small {
+            width: 30px;
+            height: 30px;
+        }
+
+        .holo-spinner.small::before,
+        .holo-spinner.small::after {
+            border-width: 2px;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .container {
+                padding: 1rem;
+                height: 100vh;
+                overflow: hidden;
+            }
+
+            .header h1 {
+                font-size: 2.2rem;
+                padding: 1rem;
+            }
+
+            .chat-container {
+                border-radius: 1.5rem;
+            }
+
+            .messages {
+                padding: 1.5rem;
+            }
+
+            .message {
+                max-width: 90%;
+                padding: 1rem;
+            }
+
+            .input-container {
+                padding: 1rem;
+                gap: 1rem;
+            }
+
+            .input-box {
+                padding: 1rem;
+            }
+
+            .send-btn {
+                padding: 1rem 1.5rem;
+            }
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: rgba(20, 25, 50, 0.4);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: linear-gradient(var(--primary), var(--secondary));
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>SHIKSHAVANI</h1>
+        </div>
+
+        <div class="chat-container">
+            <div class="messages" id="messages">
+                <div class="message bot-message">
+                    🚀 Welcome to Shikshavani Quantum Learning!
+                    <div style="margin-top: 1rem; opacity: 0.8;">
+                        Ask anything and get:<br>
+                        ▸ Holographic Explanations<br>
+                        ▸ 3D Visual Solutions<br>
+                        ▸ AI-Curated Video Paths
+                    </div>
+                </div>
+            </div>
+
+            <!-- Loading Animation Container -->
+            <div class="quantum-loader" id="loader" style="display: none;">
+                <div class="holo-spinner"></div>
+            </div>
+
+            <div class="input-container">
+                <input type="text" class="input-box" placeholder="Enter your quantum query..." id="userInput">
+                <button class="send-btn" id="sendBtn">
+                    <i class="fas fa-paper-plane"></i>
+                    Transmit
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const messages = document.getElementById('messages');
+        const loader = document.getElementById('loader');
+        const userInput = document.getElementById('userInput');
+        const sendBtn = document.getElementById('sendBtn');
+
+        // Dynamic Layout Management
+        function maintainViewport() {
+            const headerHeight = document.querySelector('.header').offsetHeight;
+            const inputHeight = document.querySelector('.input-container').offsetHeight;
+            messages.style.maxHeight = `calc(100vh - ${headerHeight + inputHeight + 30}px)`;
+        }
+
+        window.addEventListener('resize', maintainViewport);
+        maintainViewport();
+
+        // Quantum Loading System
+        function showLoader() {
+            loader.style.display = 'flex';
+            messages.scrollTop = messages.scrollHeight;
+        }
+
+        function hideLoader() {
+            loader.style.display = 'none';
+        }
+
+        // Message Creation
+        function createMessage(content, isUser = false) {
+            const message = document.createElement('div');
+            message.className = `message ${isUser ? 'user-message' : 'bot-message'}`;
+            message.innerHTML = content;
+            return message;
+        }
+
+        // Error Message Display
+        function showErrorMessage(message) {
+            messages.appendChild(createMessage(`
+                <div style="color: #ff6b6b;">
+                    <i class="fas fa-exclamation-triangle"></i> 
+                    Error: ${message}
+                </div>
+            `));
+        }
+
+        // Handle User Query
+        async function handleQuery() {
+            const query = userInput.value.trim();
+            if (!query) return;
+
+            // Add user message
+            messages.appendChild(createMessage(query, true));
+            userInput.value = '';
+            
+            // Show quantum loader
+            showLoader();
+            
+            try {
+                // Send topic to Flask backend
+                const response = await fetch('/generate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ topic: query })
+                });
+
+                if (response.ok) {
+                    // Start progress tracking
+                    trackProgress();
+                } else {
+                    const error = await response.json();
+                    throw new Error(error.error || 'Generation failed');
+                }
+            } catch (error) {
+                hideLoader();
+                showErrorMessage(error.message);
+            }
+        }
+
+        // Track Generation Progress
+        function trackProgress() {
+            const progressMessage = createMessage(`
+                <div class="processing-message">
+                    <div class="processing-content">
+                        <div class="holo-spinner small"></div>
+                        <div>🚀 Preparing your learning experience...</div>
+                    </div>
+                    <div class="progress-container">
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: 0%"></div>
+                        </div>
+                        <div class="progress-text">0% - Initializing...</div>
+                        <div class="time-remaining">Estimated time remaining: 2 minutes</div>
+                    </div>
+                    <div class="progress-note">We're preparing your personalized content</div>
+                </div>
+            `);
+            messages.appendChild(progressMessage);
+
+            const progressFill = progressMessage.querySelector('.progress-fill');
+            const progressText = progressMessage.querySelector('.progress-text');
+            const timeRemaining = progressMessage.querySelector('.time-remaining');
+            
+            const eventSource = new EventSource('/progress');
+            
+            eventSource.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                
+                if (data.status === 'completed') {
+                    progressFill.style.width = '100%';
+                    progressText.textContent = '100% - Complete!';
+                    timeRemaining.textContent = 'Ready to view!';
+                    eventSource.close();
+                    setTimeout(() => {
+                        window.location.href = '/interactive';
+                    }, 1000);
+                } 
+                else if (data.status === 'in_progress') {
+                    progressFill.style.width = `${data.progress}%`;
+                    progressText.textContent = `${data.progress}% - ${data.message}`;
+                    const mins = Math.floor(data.estimated_time / 60);
+                    const secs = Math.floor(data.estimated_time % 60);
+                    timeRemaining.textContent = `Estimated time remaining: ${mins}m ${secs}s`;
+                }
+                else if (data.status === 'error') {
+                    eventSource.close();
+                    hideLoader();
+                    showErrorMessage(data.message || 'Generation failed');
+                }
+            };
+            
+            eventSource.onerror = function() {
+                eventSource.close();
+                hideLoader();
+                showErrorMessage('Connection error. Please refresh and try again.');
+            };
+        }
+
+        // Event Listeners
+        sendBtn.addEventListener('click', handleQuery);
+        userInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') handleQuery();
+        });
+    </script>
+</body>
+</html>

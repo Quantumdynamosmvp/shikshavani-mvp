@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>D3.js Action-Reaction: Importance of Context</title>
+    <style>
+        body {
+            font-family: sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #f0f0f0;
+            margin: 0;
+        }
+        .tooltip {
+            position: absolute;
+            text-align: center;
+            width: auto;
+            height: auto;
+            padding: 8px;
+            font: 12px sans-serif;
+            background: lightsteelblue;
+            border: 0px;
+            border-radius: 8px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            z-index: 10;
+        }
+        svg {
+            border: 1px solid #ccc;
+            background-color: #ffffff;
+        }
+        .explainer-node {
+            cursor: grab;
+            stroke-width: 3px;
+        }
+        .explainer-node:active {
+            cursor: grabbing;
+        }
+        .audience-node {
+            cursor: pointer;
+        }
+        .flow-line {
+            stroke-dasharray: 5, 5;
+            pointer-events: none;
+            opacity: 0;
+        }
+        .status-text {
+            font-size: 14px;
+            fill: #555;
+            text-anchor: middle;
+        }
+         .instruction-text {
+            font-size: 12px;
+            fill: #777;
+            text-anchor: middle;
+        }
+    </style>
+</head>
+<body>
+    <div id="visualization"></div>
+    <div class="tooltip"></div>
+
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script>
+        // Hey there, D3.js wizard! Let's bring the 'Importance of Context' concept to life
+        // with an interactive animation demonstrating an action-reaction dynamic.
+
+        // --- Configuration ---
+        const width = 800;
+        const height = 500;
+        const explainerRadius = 30;
+        const audienceRadiusBase = 15;
+        const flowDuration = 1500; // ms for flow animation
+        const reactionDuration = 500; // ms for audience reaction
+        const pulseDuration = 1500; // ms for explainer pulse
+
+        // Context/Audience Definitions
+        const audiences = [
+            { id: 'child', label: 'Child', context: 'Limited prior knowledge, needs simple terms & analogies.', radius: audienceRadiusBase, color: '#FFD700', x: width * 0.2, y: height / 2, requiredFlow: 'simple' }, // Light Yellow
+            { id: 'student', label: 'Student', context: 'Some background, understands technical terms but needs structure.', radius: audienceRadiusBase * 1.5, color: '#FFA500', x: width / 2, y: height * 0.2, requiredFlow: 'technical' }, // Orange
+            { id: 'expert', label: 'Expert', context: 'Deep knowledge, appreciates nuances and complex details.', radius: audienceRadiusBase * 2, color: '#8A2BE2', x: width * 0.8, y: height / 2, requiredFlow: 'complex' }  // Deep Purple (BlueViolet)
+        ];
+
+        const flowTypes = [
+            { id: 'simple', label: 'Simple', color: '#6495ED', strokeDash: "5, 5", speedFactor: 1 }, // CornflowerBlue
+            { id: 'technical', label: 'Technical', color: '#3CB371', strokeDash: "2, 2", speedFactor: 1.5 }, // MediumSeaGreen
+            { id: 'complex', label: 'Nuanced', color: '#DC143C', strokeDash: "10, 2, 2, 2", speedFactor: 0.8 } // Crimson
+        ];
+        let currentFlowIndex = 0;
+
+        // --- Setup SVG ---
+        const svg = d3.select("#visualization").append("svg")
+            .attr("width", width)
+            .attr("height", height);
+
+        // --- Tooltip ---
+        const tooltip = d3.select(".tooltip");
+
+        // --- Defs for Markers (Optional: Arrowheads for flow) ---
+        svg.append("defs").append("marker")
+            .attr("id", "arrowhead")
+            .attr("viewBox", "-0 -5 10 10")
+            .attr("refX", 5)
+            .attr("refY", 0)
+            .attr("orient", "auto")
+            .attr("markerWidth", 6)
+            .attr("markerHeight", 6)
+            .attr("xoverflow", "visible")
+            .append("svg:path")
+            .attr("d", "M 0,-5 L 10 ,0 L 0,5")
+            .attr("fill", "#999")
+            .style("stroke", "none");
+
+        // --- Create Elements ---
+
+        // Explainer Node Group (allows easier dragging)
+        const explainerGroup = svg.append("g")
+            .attr("transform", `translate(${width / 2}, ${height * 0.8})`); // Start position
+
+        // Add Instruction Text below explainer
+         svg.append("text")
+            .attr("class", "instruction-text")
+            .attr("x", width / 2)
+            .attr("y", height - 15)
+            .text("Click explainer to change style. Drag explainer to initiate flow. Hover audience for context.");
+
+
+        const explainerNode = explainerGroup.append("circle")
+            .attr("class", "explainer-node")
+            .attr("r", explainerRadius)
+            .attr("fill", "#4682B4") // SteelBlue base
+            .attr("stroke", flowTypes[currentFlowIndex].color) // Initial border color matches first flow type
+            .attr("stroke-width", 4);
+
+        explainerGroup.append("text")
+            .attr("text-anchor", "middle")
+            .attr("dy", ".35em") // Vertically center
+            .attr("fill", "white")
+            .attr("font-weight", "bold")
+            .style("pointer-events", "none") // Allow click through text
+            .text("Explainer");
+
+
+        // Audience Nodes
+        const audienceGroups = svg.selectAll(".audience-group")
+            .data(audiences)
+            .enter().append("g")
+            .attr("class", "audience-group")
+            .attr("transform", d => `translate(${d.x}, ${d.y})`);
+
+        audienceGroups.append("circle")
+            .attr("class", "audience-node")
+            .attr("id", d => `audience-${d.id}`)
+            .attr("r", d => d.radius)
+            .attr("fill", d => d.color)
+            .attr("stroke", "#333")
+            .attr("stroke-width", 1.5);
+
+        audienceGroups.append("text")
+            .attr("text-anchor", "middle")
+            .attr("dy", d => d.radius + 14) // Position label below circle
+            .style("font-size", "12px")
+            .style("pointer-events", "none")
+            .text(d => d.label);
+
+         // Status Text for Flow Type
+        const statusText = svg.append("text")
+            .attr("class", "status-text")
+            .attr("x", width / 2)
+            .attr("y", 30)
+            .text(`Explanation Style: ${flowTypes[currentFlowIndex].label}`);
+
+
+        // --- Interactivity ---
+
+        // Pulsing effect for Explainer
+        function pulseExplainer() {
+             explainerNode.transition()
+                .duration(pulseDuration / 2)
+                .ease(d3.easeCubicInOut)
+                .attr("r", explainerRadius * 1.1)
+                .transition()
+                .duration(pulseDuration / 2)
+                .ease(d3.easeCubicInOut)
+                .attr("r", explainerRadius)
+                .on("end", pulseExplainer); // Loop the pulse
+        }
+        pulseExplainer(); // Start pulsing
+
+
+        // Explainer Click: Cycle through flow types
+        explainerGroup.on("click", (event) => {
+             event.stopPropagation(); // Prevent drag initiation on simple click
+             currentFlowIndex = (currentFlowIndex + 1) % flowTypes.length;
+             explainerNode.transition()
+                 .duration(300)
+                 .attr("stroke", flowTypes[currentFlowIndex].color);
+             statusText.text(`Explanation Style: ${flowTypes[currentFlowIndex].label}`);
+             console.log("Switched to flow type:", flowTypes[currentFlowIndex].id);
+        });
+
+        // Explainer Drag Logic
+        let flowLines = []; // Keep track of active flow lines
+        const dragHandler = d3.drag()
+            .on("start", function(event) {
+                d3.select(this).raise().classed("active", true);
+                explainerNode.interrupt(); // Stop pulsing during drag
+                d3.select(this).select("circle").attr("r", explainerRadius * 1.1).style("cursor", "grabbing"); // Enlarge slightly on grab
+
+                // Clear previous flows immediately
+                svg.selectAll(".flow-line").remove();
+                flowLines = []; // Reset tracking array
+
+                // Reset audience reactions visually before starting new flow
+                 audienceGroups.select("circle")
+                    .transition()
+                    .duration(200)
+                    .attr("transform", "scale(1)")
+                    .style("opacity", 1.0)
+                    .style("filter", null); // Remove any filters like brightness
+                 audienceGroups.select(".reaction-icon").remove(); // Remove icons
+
+
+            })
+            .on("drag", function(event, d) {
+                // Update position smoothly
+                const newX = Math.max(explainerRadius, Math.min(width - explainerRadius, event.x));
+                const newY = Math.max(explainerRadius, Math.min(height - explainerRadius - 30, event.y)); // Adjust for text below
+                d3.select(this).attr("transform", `translate(${newX}, ${newY})`);
+
+                 // Check if flow should be initiated (only if not already flowing)
+                 if (flowLines.length === 0) {
+                     initiateFlow(newX, newY);
+                 } else {
+                    // OPTIONAL: Could dynamically update flow path during drag, but can be complex/laggy.
+                    // For now, flow initiates once on 'start' and plays out.
+                 }
+            })
+            .on("end", function(event) {
+                d3.select(this).classed("active", false);
+                d3.select(this).select("circle").attr("r", explainerRadius).style("cursor", "grab"); // Reset size and cursor
+                pulseExplainer(); // Resume pulsing
+                // Flow continues until finished, reaction happens at the end of flow.
+            });
+
+        explainerGroup.call(dragHandler);
+
+
+        function initiateFlow(startX, startY) {
+            const selectedFlow = flowTypes[currentFlowIndex];
+
+            audiences.forEach(audience => {
+                const endX = audience.x;
+                const endY = audience.y;
+
+                const line = svg.append("line")
+                    .attr("class", "flow-line")
+                    .attr("x1", startX)
+                    .attr("y1", startY)
+                    .attr("x2", startX) // Start collapsed
+                    .attr("y2", startY)
+                    .attr("stroke", selectedFlow.color)
+                    .attr("stroke-width", 2)
+                    .attr("stroke-dasharray", selectedFlow.strokeDash)
+                    .style("opacity", 0.8); // Make visible
+
+                flowLines.push(line); // Track the line
+
+                line.transition()
+                    .duration(flowDuration / selectedFlow.speedFactor)
+                    .ease(d3.easeLinear) // Consistent speed
+                    .attr("x2", endX)
+                    .attr("y2", endY)
+                    .on("end", () => {
+                        triggerReaction(audience, selectedFlow);
+                        line.transition().duration(300).style("opacity", 0).remove(); // Fade out line after hitting target
+                        // Remove line from tracking array (optional, depends if you need to manage completed lines)
+                        flowLines = flowLines.filter(l => l !== line);
+                    });
+
+                // Animate stroke-dashoffset for moving dashes effect
+                 const lineLength = Math.sqrt(Math.pow(endX - startX, 2) + Math.pow(endY - startY, 2));
+                 line.style("stroke-dashoffset", lineLength)
+                     .transition()
+                     .duration(flowDuration / selectedFlow.speedFactor)
+                     .ease(d3.easeLinear)
+                     .style("stroke-dashoffset", 0);
+            });
+        }
+
+        function triggerReaction(audience, flow) {
+             const audienceCircle = d3.select(`#audience-${audience.id}`);
+             const audienceGroup = audienceCircle.select(function() { return this.parentNode; }); // Get parent group
+             const isMatch = audience.requiredFlow === flow.id;
+
+             // Remove previous reaction icons if any
+             audienceGroup.select(".reaction-icon").remove();
+
+            if (isMatch) {
+                // Good Match: Brighten, expand slightly, absorb
+                audienceCircle.transition("reaction")
+                    .duration(reactionDuration)
+                    .ease(d3.easeCubicInOut)
+                    .attr("transform", "scale(1.1)")
+                    .style("filter", "brightness(1.3)") // Brighter
+                    .transition()
+                    .duration(reactionDuration)
+                    .ease(d3.easeCubicInOut)
+                    .attr("transform", "scale(1)") // Return to normal size
+                    .style("filter", "brightness(1.0)"); // Return to normal brightness
+
+                // Add a subtle "check" mark temporarily
+                audienceGroup.append("text")
+                    .attr("class", "reaction-icon")
+                    .attr("text-anchor", "middle")
+                    .attr("dominant-baseline", "central")
+                    .attr("font-size", audience.radius * 0.8)
+                    .attr("fill", "green")
+                    .style("opacity", 0)
+                    .text("✔")
+                    .transition()
+                    .duration(reactionDuration)
+                    .style("opacity", 1)
+                    .transition()
+                    .delay(reactionDuration * 1.5)
+                    .duration(reactionDuration)
+                    .style("opacity", 0)
+                    .remove();
+
+
+            } else {
+                // Poor Match: Shake, dim, shrink slightly, deflect
+                const shakeIntensity = 5;
+                 audienceCircle.transition("reaction")
+                    .duration(reactionDuration / 4)
+                    .ease(d3.easeBounce)
+                    .attr("transform", `translate(${shakeIntensity}, 0) scale(0.9)`) // Shrink and move right
+                    .style("filter", "brightness(0.6)") // Dim
+                    .transition()
+                    .duration(reactionDuration / 4)
+                    .ease(d3.easeBounce)
+                    .attr("transform", `translate(${-shakeIntensity}, 0) scale(0.9)`) // Move left
+                    .transition()
+                    .duration(reactionDuration / 4)
+                    .ease(d3.easeBounce)
+                    .attr("transform", `translate(${shakeIntensity / 2}, 0) scale(0.9)`) // Move right small
+                    .transition()
+                    .duration(reactionDuration / 4)
+                    .ease(d3.easeCubicOut)
+                    .attr("transform", "translate(0, 0) scale(1)") // Return to original position and size
+                    .style("filter", "brightness(1.0)"); // Return brightness slowly
+
+
+                  // Add a subtle "X" mark temporarily
+                 audienceGroup.append("text")
+                    .attr("class", "reaction-icon")
+                    .attr("text-anchor", "middle")
+                    .attr("dominant-baseline", "central")
+                    .attr("font-size", audience.radius * 0.8)
+                    .attr("fill", "red")
+                    .style("opacity", 0)
+                    .text("✖")
+                    .transition()
+                    .duration(reactionDuration)
+                    .style("opacity", 1)
+                    .transition()
+                    .delay(reactionDuration * 1.5)
+                    .duration(reactionDuration)
+                    .style("opacity", 0)
+                    .remove();
+            }
+        }
+
+
+        // Audience Tooltips
+        audienceGroups
+            .on("mouseover", function(event, d) {
+                tooltip.transition()
+                    .duration(200)
+                    .style("opacity", .9);
+                tooltip.html(`<strong>${d.label}</strong><br/>${d.context}`)
+                    .style("left", (event.pageX + 15) + "px") // Offset slightly from cursor
+                    .style("top", (event.pageY - 28) + "px");
+
+                 // Slightly highlight the hovered audience node
+                d3.select(this).select("circle")
+                  .transition().duration(150)
+                  .attr("stroke-width", 3)
+                  .style("filter", "brightness(1.1)");
+
+            })
+            .on("mouseout", function(d) {
+                tooltip.transition()
+                    .duration(500)
+                    .style("opacity", 0);
+
+                 // Reset highlight
+                 d3.select(this).select("circle")
+                   .transition().duration(150)
+                   .attr("stroke-width", 1.5)
+                   .style("filter", null);
+            });
+
+
+        // Ensure code is clean: Use local variables, comments added, basic structure.
+        // Optimization: Limited number of elements, uses D3 transitions, removes elements when done.
+        // D3 v7 used.
+
+    </script>
+</body>
+</html>

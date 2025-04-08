@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Explanation Types Demo</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        body {
+            font-family: sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f4f4f9;
+            margin: 0;
+            padding: 20px;
+        }
+        .visualization-container {
+            border: 1px solid #ccc;
+            background-color: #ffffff;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            margin-top: 20px;
+        }
+        .controls {
+            margin-bottom: 20px;
+            padding: 10px;
+            background-color: #e9e9ef;
+            border-radius: 5px;
+        }
+        .controls label {
+            margin-right: 10px;
+        }
+        .controls button {
+            padding: 8px 15px;
+            margin: 0 5px;
+            cursor: pointer;
+            border: none;
+            border-radius: 4px;
+            background-color: #4CAF50;
+            color: white;
+            transition: background-color 0.3s ease;
+        }
+        .controls button:hover {
+            background-color: #45a049;
+        }
+        .controls button.active {
+            background-color: #3e8e41;
+            font-weight: bold;
+        }
+        svg {
+            display: block;
+            margin: auto;
+        }
+        .draggable {
+            cursor: grab;
+        }
+        .draggable:active {
+            cursor: grabbing;
+        }
+        .drop-zone {
+            fill: #eee;
+            stroke: #aaa;
+            stroke-dasharray: 5,5;
+        }
+        .label {
+            font-size: 12px;
+            fill: #333;
+            text-anchor: middle;
+            pointer-events: none;
+            user-select: none;
+        }
+        .tooltip {
+            position: absolute;
+            text-align: center;
+            padding: 8px;
+            font: 12px sans-serif;
+            background: lightsteelblue;
+            border: 0px;
+            border-radius: 8px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        .deductive-principle { fill: #2c3e50; }
+        .deductive-case { fill: #3498db; }
+        .deductive-conclusion { fill: #2c3e50; }
+        .deductive-line { stroke: #2c3e50; stroke-width: 3px; }
+        .inductive-observation { fill: #27ae60; }
+        .inductive-conclusion { fill: #2ecc71; fill-opacity: 0.5; }
+        .inductive-line { stroke: #27ae60; stroke-width: 2px; stroke-dasharray: 3, 3; }
+        .abductive-evidence { fill: #e67e22; }
+        .abductive-hypothesis { fill: #f39c12; fill-opacity: 0.5;}
+        .abductive-line { stroke: #d35400; stroke-width: 2px; stroke-dasharray: 1, 4; }
+        .evidence-icon {
+            font-size: 20px;
+            text-anchor: middle;
+            dominant-baseline: central;
+            fill: #fff;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>Interactive Explanation Demonstrator</h1>
+    <p>Select an explanation type and interact with the elements to see how it works.</p>
+    <div class="controls">
+        <label>Select Explanation Type:</label>
+        <button id="deductiveBtn" class="active">Deductive</button>
+        <button id="inductiveBtn">Inductive</button>
+        <button id="abductiveBtn">Abductive</button>
+    </div>
+    <div class="visualization-container">
+        <svg width="800" height="500"></svg>
+    </div>
+    <div class="tooltip"></div>
+    <script>
+        const svg = d3.select("svg");
+        const width = +svg.attr("width");
+        const height = +svg.attr("height");
+        const margin = { top: 50, right: 50, bottom: 50, left: 50 };
+        const innerWidth = width - margin.left - margin.right;
+        const innerHeight = height - margin.top - margin.bottom;
+        const g = svg.append("g").attr("transform", `translate(${margin.left}, ${margin.top})`);
+        const tooltip = d3.select(".tooltip");
+        let currentView = 'deductive';
+        const explanationData = {
+            deductive: {
+                principle: { id: 'p1', x: innerWidth / 2, y: 50, width: 200, height: 40, text: "General Principle", tooltip: "A broad rule or law (e.g., All men are mortal).", colorClass: 'deductive-principle' },
+                case: { id: 'c1', x: 100, y: innerHeight - 30, width: 150, height: 30, text: "Specific Case", tooltip: "A specific instance related to the principle (e.g., Socrates is a man). Drag this!", colorClass: 'deductive-case', isDraggable: true },
+                conclusion: { id: 'con1', x: innerWidth / 2, y: innerHeight - 80, width: 180, height: 35, text: "Conclusion", tooltip: "The logical outcome (e.g., Socrates is mortal).", colorClass: 'deductive-conclusion', isVisible: false },
+                dropZone: { x: innerWidth / 2 - 80, y: 150, width: 160, height: 50 },
+                connections: [
+                    { from: 'p1', to: 'dropZone', type: 'line', class: 'deductive-line', isVisible: true },
+                    { from: 'dropZone', to: 'con1', type: 'line', class: 'deductive-line', isVisible: false }
+                ]
+            },
+            inductive: {
+                observations: [
+                    { id: 'obs1', cx: 100, cy: innerHeight - 30, r: 15, text: "Obs 1", tooltip: "Specific observation (e.g., Swan 1 is white). Drag me!", colorClass: 'inductive-observation', isDraggable: true },
+                    { id: 'obs2', cx: 150, cy: innerHeight - 30, r: 15, text: "Obs 2", tooltip: "Specific observation (e.g., Swan 2 is white). Drag me!", colorClass: 'inductive-observation', isDraggable: true },
+                    { id: 'obs3', cx: 200, cy: innerHeight - 30, r: 15, text: "Obs 3", tooltip: "Specific observation (e.g., Swan 3 is white). Drag me!", colorClass: 'inductive-observation', isDraggable: true },
+                ],
+                conclusion: { id: 'icon1', cx: innerWidth / 2, cy: 100, r: 50, text: "General Conclusion?", tooltip: "A probable generalization (e.g., All swans are white?). Opacity increases with observations.", colorClass: 'inductive-conclusion', opacity: 0.1, droppedCount: 0 },
+                dropZone: { x: innerWidth / 2 - 100, y: innerHeight / 2 - 50, width: 200, height: 100 },
+                connections: []
+            },
+            abductive: {
+                evidence: [
+                    { id: 'ev1', x: 80, y: innerHeight - 40, width: 50, height: 50, text: "🔍", tooltip: "Piece of evidence (e.g., Footprints). Drag me!", colorClass: 'abductive-evidence', isDraggable: true, icon: true },
+                    { id: 'ev2', x: 160, y: innerHeight - 40, width: 50, height: 50, text: "🧩", tooltip: "Piece of evidence (e.g., Motive). Drag me!", colorClass: 'abductive-evidence', isDraggable: true, icon: true },
+                    { id: 'ev3', x: 240, y: innerHeight - 40, width: 50, height: 50, text: "⏰", tooltip: "Piece of evidence (e.g., Alibi weak). Drag me!", colorClass: 'abductive-evidence', isDraggable: true, icon: true },
+                ],
+                hypothesis: { id: 'hyp1', cx: innerWidth / 2, cy: 100, r: 60, text: "Best Guess", tooltip: "Most likely explanation (e.g., Suspect did it?). Opacity increases with evidence.", colorClass: 'abductive-hypothesis', opacity: 0.1, droppedCount: 0 },
+                dropZone: { x: innerWidth / 2 - 100, y: innerHeight / 2 - 60, width: 200, height: 120 },
+                connections: []
+            }
+        };
+        const originalPositions = JSON.parse(JSON.stringify(explanationData));
+        function dragstarted(event, d) {
+            d3.select(this).raise().attr("stroke", "black").attr("stroke-width", 2).style("cursor", "grabbing");
+        }
+        function dragged(event, d) {
+            if (d.cx !== undefined) {
+                d.cx = event.x;
+                d.cy = event.y;
+            } else {
+                d.x = event.x - d.width / 2;
+                d.y = event.y - d.height / 2;
+            }
+            d3.select(this).attr(d.cx ? "cx" : "x", d.cx ? d.cx : d.x).attr(d.cy ? "cy" : "y", d.cy ? d.cy : d.y);
+            updateVisualization(currentView, false);
+        }
+        function dragended(event, d) {
+            d3.select(this).attr("stroke", null).attr("stroke-width", null).style("cursor", "grab");
+            const dropZoneData = explanationData[currentView].dropZone;
+            let droppedInZone = d.cx
+                ? d.cx > dropZoneData.x && d.cx < dropZoneData.x + dropZoneData.width && d.cy > dropZoneData.y && d.cy < dropZoneData.y + dropZoneData.height
+                : d.x + d.width / 2 > dropZoneData.x &&
+                  d.x + d.width / 2 < dropZoneData.x + dropZoneData.width &&
+                  d.y + d.height / 2 > dropZoneData.y &&
+                  d.y + d.height / 2 < dropZoneData.y + dropZoneData.height;
+            if (droppedInZone) {
+                handleDrop(d, dropZoneData);
+            } else {
+                resetElementPosition(d);
+            }
+            updateVisualization(currentView);
+        }
+        const drag = d3.drag().on("start", dragstarted).on("drag", dragged).on("end", dragended);
+        function handleDrop(draggedElement, dropZone) {
+            if (currentView === 'deductive' && draggedElement.id === 'c1') {
+                draggedElement.x = dropZone.x + (dropZone.width / 2) - (draggedElement.width / 2);
+                draggedElement.y = dropZone.y + (dropZone.height / 2) - (draggedElement.height / 2);
+                explanationData.deductive.conclusion.isVisible = true;
+                const conclusionConnection = explanationData.deductive.connections.find(c => c.to === 'con1');
+                if (conclusionConnection) conclusionConnection.isVisible = true;
+            } else if (currentView === 'inductive') {
+                if (!explanationData.inductive.connections.some(c => c.from === draggedElement.id)) {
+                    explanationData.inductive.conclusion.droppedCount++;
+                    const conclusionData = explanationData.inductive.conclusion;
+                    conclusionData.opacity = Math.min(1, 0.1 + explanationData.inductive.conclusion.droppedCount * 0.2);
+                    explanationData.inductive.connections.push({
+                        from: draggedElement.id,
+                        to: conclusionData.id,
+                        type: 'line',
+                        class: 'inductive-line',
+                        isVisible: true
+                    });
+                    draggedElement.isDraggable = false;
+                }
+                draggedElement.cx = dropZone.x + Math.random() * dropZone.width;
+                draggedElement.cy = dropZone.y + Math.random() * dropZone.height;
+            } else if (currentView === 'abductive') {
+                if (!explanationData.abductive.connections.some(c => c.from === draggedElement.id)) {
+                    explanationData.abductive.hypothesis.droppedCount++;
+                    const hypothesisData = explanationData.abductive.hypothesis;
+                    hypothesisData.opacity = Math.min(1, 0.1 + explanationData.abductive.hypothesis.droppedCount * 0.25);
+                    explanationData.abductive.connections.push({
+                        from: draggedElement.id,
+                        to: hypothesisData.id,
+                        type: 'line',
+                        class: 'abductive-line',
+                        isVisible: true
+                    });
+                    draggedElement.isDraggable = false;
+                }
+                draggedElement.x = dropZone.x + Math.random() * (dropZone.width - draggedElement.width);
+                draggedElement.y = dropZone.y + Math.random() * (dropZone.height - draggedElement.height);
+            }
+        }
+        function resetElementPosition(elementData) {
+            let originalPos;
+            if (currentView === 'deductive' && elementData.id === 'c1') {
+                originalPos = originalPositions.deductive.case;
+            } else if (currentView === 'inductive') {
+                originalPos = originalPositions.inductive.observations.find(obs => obs.id === elementData.id);
+            } else if (currentView === 'abductive') {
+                originalPos = originalPositions.abductive.evidence.find(ev => ev.id === elementData.id);
+            }
+            if (originalPos) {
+                if (elementData.cx !== undefined) {
+                    elementData.cx = originalPos.cx;
+                    elementData.cy = originalPos.cy;
+                } else {
+                    elementData.x = originalPos.x;
+                    elementData.y = originalPos.y;
+                }
+            }
+        }
+        function updateVisualization(viewType, useTransition = true) {
+            const data = explanationData[viewType];
+            const duration = useTransition ? 750 : 0;
+            const easeType = d3.easeCubicOut;
+            g.selectAll("*").remove();
+            if (data.dropZone) {
+                g.append("rect")
+                    .attr("class", "drop-zone")
+                    .attr("x", data.dropZone.x)
+                    .attr("y", data.dropZone.y)
+                    .attr("width", data.dropZone.width)
+                    .attr("height", data.dropZone.height)
+                    .attr("rx", 5)
+                    .attr("ry", 5);
+                g.append("text")
+                    .attr("class", "label")
+                    .attr("x", data.dropZone.x + data.dropZone.width / 2)
+                    .attr("y", data.dropZone.y - 10)
+                    .text("Drop Area");
+            }
+            const lines = g.append("g").selectAll("line")
+                .data(data.connections.filter(c => c.isVisible))
+                .join("line")
+                .attr("class", d => d.class)
+                .each(function(d) {
+                    const source = findElementDataById(data, d.from);
+                    const target = findElementDataById(data, d.to);
+                    if (!source || !target) return;
+                    const x1 = source.cx ?? (source.x + source.width / 2);
+                    const y1 = source.cy ?? (source.y + source.height / 2);
+                    let x2, y2;
+                    if (d.to === 'dropZone') {
+                        x2 = data.dropZone.x + data.dropZone.width / 2;
+                        y2 = y1 < data.dropZone.y ? data.dropZone.y : data.dropZone.y + data.dropZone.height;
+                     } else if (d.from === 'dropZone') {
+                         x1 = data.dropZone.x + data.dropZone.width / 2;
+                        y1 = y2 < data.dropZone.y ? data.dropZone.y : data.dropZone.y + data.dropZone.height;
+                         x2 = target.cx ?? (target.x + target.width / 2);
+                         y2 = target.cy ?? (target.y + target.height / 2);
+                    } else {
+                        x2 = target.cx ?? (target.x + target.width / 2);
+                        y2 = target.cy ?? (target.y + target.height / 2);
+                    }
+                    d3.select(this)
+                        .attr("x1", x1)
+                        .attr("y1", y1)
+                        .attr("x2", x1)
+                        .attr("y2", y1)
+                      .transition()
+                      .duration(duration * 0.8)
+                      .delay(useTransition ? 200 : 0)
+                      .ease(d3.easeLinear)
+                      .attr("x2", x2)
+                      .attr("y2", y2);
+                });
+            let elements;
+            if (viewType === 'deductive') {
+                elements = [data.principle, data.case, data.conclusion].filter(Boolean);
+                const rects = g.append("g").selectAll("rect.element")
+                    .data(elements)
+                    .join(
+                        enter => enter.append("rect")
+                            .attr("class", d => `element ${d.colorClass} ${d.isDraggable ? 'draggable' : ''}`)
+                            .attr("id", d => d.id)
+                            .attr("x", d => d.x)
+                            .attr("y", d => d.y)
+                            .attr("width", d => d.width)
+                            .attr("height", d => d.height)
+                            .attr("rx", 3).attr("ry", 3)
+                            .style("opacity", d => (d.id === 'con1' && !d.isVisible) ? 0 : 1)
+                            .attr("transform", d => (d.id === 'con1' && !d.isVisible) ? `translate(0, 20) scale(0.8)` : `translate(0,0) scale(1)`)
+                            .call(addTooltip)
+                            .each(function(d) { if (d.isDraggable) d3.select(this).call(drag); })
+                            .call(enter => enter.transition()
+                                    .duration(duration)
+                                    .ease(easeType)
+                                    .style("opacity", 1)
+                                    .attr("transform", "translate(0,0) scale(1)")),
+                        update => update
+                            .call(update => update.transition()
+                                    .duration(duration / 2)
+                                    .ease(easeType)
+                                    .attr("x", d => d.x)
+                                    .attr("y", d => d.y)
+                                    .style("opacity", d => (d.id === 'con1' && !d.isVisible) ? 0 : 1)
+                                    .attr("transform", d => (d.id === 'con1' && !d.isVisible) ? `translate(0, 20) scale(0.8)` : `translate(0,0) scale(1)`))
+                    );
+                addLabels(rects);
+            } else if (viewType === 'inductive') {
+                elements = [...data.observations, data.conclusion].filter(Boolean);
+                 const circles = g.append("g").selectAll("circle.element")
+                    .data(elements)
+                    .join(
+                        enter => enter.append("circle")
+                            .attr("class", d => `element ${d.colorClass} ${d.isDraggable ? 'draggable' : ''}`)
+                            .attr("id", d => d.id)
+                            .attr("cx", d => d.cx)
+                            .attr("cy", d => d.cy)
+                            .attr("r", 0)
+                            .style("opacity", d => d.opacity ?? 1)
+                            .call(addTooltip)
+                            .each(function(d) { if (d.isDraggable) d3.select(this).call(drag); })
+                            .call(enter => enter.transition()
+                                .duration(duration)
+                                .delay((d, i) => i * (useTransition ? 50 : 0))
+                                .ease(easeType)
+                                .attr("r", d => d.r)
+                                .style("opacity", d => d.opacity ?? 1)
+                            ),
+                         update => update
+                            .call(update => update.transition()
+                                .duration(duration / 2)
+                                .ease(easeType)
+                                .attr("cx", d => d.cx)
+                                .attr("cy", d => d.cy)
+                                .attr("r", d => d.r)
+                                .style("opacity", d => d.opacity ?? 1)
+                                .style("filter", d => d.isDraggable === false ? "grayscale(80%)" : null)
+                            )
+                     );
+                 addLabels(circles);
+            } else if (viewType === 'abductive') {
+                const evidenceElements = data.evidence;
+                const hypothesisElement = data.hypothesis;
+                const evidenceRects = g.append("g").selectAll("rect.evidence-element")
+                    .data(evidenceElements)
+                     .join(
+                        enter => enter.append("rect")
+                            .attr("class", d => `element ${d.colorClass} ${d.isDraggable ? 'draggable' : ''} evidence-element`)
+                            .attr("id", d => d.id)
+                            .attr("x", d => d.x)
+                            .attr("y", d => d.y)
+                            .attr("width", 0)
+                            .attr("height", 0)
+                             .attr("rx", 5).attr("ry", 5)
+                             .style("opacity", 0)
+                            .call(addTooltip)
+                            .each(function(d) { if (d.isDraggable) d3.select(this).call(drag); })
+                            .call(enter => enter.transition()
+                                .duration(duration)
+                                .delay((d, i) => i * (useTransition ? 70 : 0))
+                                .ease(d3.easeBounce)
+                                .attr("width", d => d.width)
+                                .attr("height", d => d.height)
+                                .style("opacity", 1)
+                            ),
+                         update => update
+                            .call(update => update.transition()
+                                .duration(duration / 2)
+                                .ease(easeType)
+                                .attr("x", d => d.x)
+                                .attr("y", d => d.y)
+                                .style("filter", d => d.isDraggable === false ? "grayscale(80%)" : null)
+                             )
+                    );
+                 const evidenceLabels = g.append("g").selectAll("text.evidence-label")
+                     .data(evidenceElements)
+                    .join("text")
+                     .attr("class", "evidence-icon evidence-label")
+                     .attr("id", d => `label-${d.id}`)
+                     .attr("x", d => d.x + d.width / 2)
+                     .attr("y", d => d.y + d.height / 2)
+                     .text(d => d.icon ? d.text : '')
+                     .style("opacity", 0)
+                     .style("font-size", d => d.icon ? `${d.width * 0.6}px` : "12px")
+                     .transition()
+                     .duration(duration)
+                     .delay((d, i) => i * (useTransition ? 70 : 0) + (duration * 0.2))
+                     .style("opacity", 1);
+                const hypothesisCircle = g.append("g").selectAll("circle.hypothesis-element")
+                    .data([hypothesisElement].filter(Boolean))
+                    .join(
+                         enter => enter.append("circle")
+                            .attr("class", d => `element ${d.colorClass} hypothesis-element`)
+                            .attr("id", d => d.id)
+                            .attr("cx", d => d.cx)
+                            .attr("cy", d => d.cy)
+                            .attr("r", 0)
+                            .style("opacity", d => d.opacity ?? 1)
+                            .call(addTooltip)
+                            .call(enter => enter.transition()
+                                .duration(duration)
+                                .ease(easeType)
+                                .attr("r", d => d.r)
+                                .style("opacity", d => d.opacity ?? 1)
+                             ),
+                        update => update
+                            .call(update => update.transition()
+                                .duration(duration / 2)
+                                .ease(easeType)
+                                .attr("cx", d => d.cx)
+                                .attr("cy", d => d.cy)
+                                .attr("r", d => d.r)
+                                .style("opacity", d => d.opacity ?? 1)
+                            )
+                    );
+                 addLabels(hypothesisCircle);
+            }
+        }
+        function addLabels(selection) {
+             g.append("g").selectAll("text.label")
+                 .data(selection.data())
+                 .join("text")
+                 .attr("class", "label")
+                 .attr("id", d => `label-${d.id}`)
+                 .attr("x", d => d.cx ?? (d.x + d.width / 2))
+                 .attr("y", d => d.cy ?? (d.y + d.height / 2))
+                 .attr("dy", d => d.cx ? "0.35em" : "0.35em")
+                 .text(d => d.icon ? "" : d.text)
+                 .style("opacity", 0)
+                 .transition()
+                 .duration(500)
+                 .delay(300)
+                 .style("opacity", 1);
+        }
+        function findElementDataById(data, id) {
+             if (id === 'dropZone') return data.dropZone;
+             const mainElements = [
+                data.principle, data.case, data.conclusion,
+                data.conclusion, data.hypothesis,
+                ...(data.observations || []),
+                ...(data.evidence || [])
+            ].filter(Boolean);
+            return mainElements.find(el => el && el.id === id);
+        }
+         function addTooltip(selection) {
+            selection
+                .on("mouseover", function(event, d) {
+                    if (!d.tooltip) return;
+                    tooltip.transition()
+                        .duration(200)
+                        .style("opacity", .9);
+                    tooltip.html(d.tooltip)
+                        .style("left", (event.pageX + 15) + "px")
+                        .style("top", (event.pageY - 28) + "px");
+                     d3.select(this)
+                        .transition()
+                        .duration(150)
+                        .attr("transform", function() {
+                            const currentTransform = d3.select(this).attr("transform") || "";
+                            if (d.cx !== undefined) {
+                                return `translate(${d.cx}, ${d.cy}) scale(1.1) translate(${-d.cx}, ${-d.cy})`;
+                             } else {
+                                const centerX = d.x + d.width / 2;
+                                const centerY = d.y + d.height / 2;
+                                return `translate(${centerX}, ${centerY}) scale(1.1) translate(${-centerX}, ${-centerY})`;
+                            }
+                        });
+                })
+                .on("mouseout", function(event, d) {
+                    tooltip.transition()
+                        .duration(500)
+                        .style("opacity", 0);
+                    d3.select(this)
+                         .transition()
+                         .duration(150)
+                         .attr("transform", function() {
+                             const currentTransform = d3.select(this).attr("transform") || "";
+                              if (d.cx !== undefined) {
+                                return `translate(0,0) scale(1)`;
+                              } else {
+                                return `translate(0,0) scale(1)`;
+                              }
+                         });
+                });
+        }
+        d3.selectAll(".controls button").on("click", function() {
+            const btnId = d3.select(this).attr("id");
+             resetViewState(currentView);
+            if (btnId === "deductiveBtn") {
+                currentView = 'deductive';
+            } else if (btnId === "inductiveBtn") {
+                currentView = 'inductive';
+            } else if (btnId === "abductiveBtn") {
+                currentView = 'abductive';
+            }
+            d3.selectAll(".controls button").classed("active", false);
+            d3.select(this).classed("active", true);
+            updateVisualization(currentView);
+        });
+         function resetViewState(viewType) {
+            if (viewType === 'deductive') {
+                explanationData.deductive.conclusion.isVisible = false;
+                const conclusionConnection = explanationData.deductive.connections.find(c => c.to === 'con1');
+                if (conclusionConnection) conclusionConnection.isVisible = false;
+                explanationData.deductive.case.x = originalPositions.deductive.case.x;
+                explanationData.deductive.case.y = originalPositions.deductive.case.y;
+            } else if (viewType === 'inductive') {
+                explanationData.inductive.conclusion.opacity = 0.1;
+                 explanationData.inductive.conclusion.droppedCount = 0;
+                 explanationData.inductive.connections = [];
+                 explanationData.inductive.observations.forEach((obs, i) => {
+                     obs.cx = originalPositions.inductive.observations[i].cx;
+                     obs.cy = originalPositions.inductive.observations[i].cy;
+                     obs.isDraggable = true;
+                 });
+            } else if (viewType === 'abductive') {
+                explanationData.abductive.hypothesis.opacity = 0.1;
+                 explanationData.abductive.hypothesis.droppedCount = 0;
+                 explanationData.abductive.connections = [];
+                 explanationData.abductive.evidence.forEach((ev, i) => {
+                     ev.x = originalPositions.abductive.evidence[i].x;
+                     ev.y = originalPositions.abductive.evidence[i].y;
+                     ev.isDraggable = true;
+                 });
+            }
+        }
+        updateVisualization(currentView);
+    </script>
+</body>
+</html>

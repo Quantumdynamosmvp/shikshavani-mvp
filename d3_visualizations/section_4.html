@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Newton's Second Law Demo</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        body {
+            font-family: sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background-color: #f0f0f0;
+            margin: 20px;
+        }
+        svg {
+            border: 1px solid #ccc;
+            background-color: #ffffff;
+            overflow: visible;
+        }
+        .cart {
+            fill: #88aaff;
+            stroke: #3355cc;
+            stroke-width: 2;
+        }
+        .wheels {
+            fill: #555;
+        }
+        .force-arrow {
+            stroke: #ff6347;
+            stroke-width: 3;
+            marker-end: url(#arrowhead);
+            opacity: 0;
+        }
+        .force-arrow-handle {
+            fill: #ff6347;
+            cursor: grab;
+            opacity: 0;
+        }
+        .force-arrow-handle:active {
+            cursor: grabbing;
+        }
+        .ground {
+            stroke: #aaa;
+            stroke-width: 2;
+        }
+        .controls {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #e0e0e0;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex;
+            gap: 20px;
+            align-items: center;
+        }
+        .controls label {
+            font-weight: bold;
+        }
+        .controls input[type="range"] {
+            width: 150px;
+        }
+        .readout {
+            font-size: 0.9em;
+            color: #333;
+        }
+        .info-text {
+             margin-top: 10px;
+             font-style: italic;
+             color: #555;
+        }
+    </style>
+</head>
+<body>
+
+<h1>Newton's Second Law: F = ma</h1>
+<p class="info-text">Drag the red circle to apply force. Adjust the mass using the slider.</p>
+
+<div id="visualization"></div>
+
+<div class="controls">
+    <label for="massSlider">Mass (kg): <span id="massValue">50</span></label>
+    <input type="range" id="massSlider" min="10" max="200" value="50" step="1">
+    <div class="readout">
+        Applied Force: <span id="forceReadout">0.0</span> N<br>
+        Acceleration: <span id="accelerationReadout">0.00</span> m/s²
+    </div>
+    <button id="resetButton">Reset</button>
+</div>
+
+<script>
+    const width = 600;
+    const height = 300;
+    const cartWidth = 60;
+    const cartHeight = 40;
+    const wheelRadius = 8;
+    const groundY = height - 30;
+    const cartInitialX = 50;
+    const cartY = groundY - cartHeight / 2 - wheelRadius;
+
+    const svg = d3.select("#visualization")
+        .append("svg")
+        .attr("width", width)
+        .attr("height", height);
+
+    svg.append("defs").append("marker")
+        .attr("id", "arrowhead")
+        .attr("viewBox", "0 -5 10 10")
+        .attr("refX", 8)
+        .attr("refY", 0)
+        .attr("markerWidth", 6)
+        .attr("markerHeight", 6)
+        .attr("orient", "auto")
+        .append("path")
+        .attr("d", "M0,-5L10,0L0,5")
+        .attr("fill", "#ff6347");
+
+    svg.append("line")
+        .attr("class", "ground")
+        .attr("x1", 0)
+        .attr("y1", groundY)
+        .attr("x2", width)
+        .attr("y2", groundY);
+
+    const cartGroup = svg.append("g")
+        .attr("class", "cart-group")
+        .attr("transform", `translate(${cartInitialX}, ${cartY})`);
+
+    cartGroup.append("rect")
+        .attr("class", "cart")
+        .attr("x", -cartWidth / 2)
+        .attr("y", -cartHeight / 2)
+        .attr("width", cartWidth)
+        .attr("height", cartHeight);
+
+    cartGroup.append("circle")
+        .attr("class", "wheels")
+        .attr("cx", -cartWidth / 4)
+        .attr("cy", cartHeight / 2 + wheelRadius)
+        .attr("r", wheelRadius);
+
+    cartGroup.append("circle")
+        .attr("class", "wheels")
+        .attr("cx", cartWidth / 4)
+        .attr("cy", cartHeight / 2 + wheelRadius)
+        .attr("r", wheelRadius);
+
+    const forceArrow = svg.append("line")
+        .attr("class", "force-arrow");
+
+    const forceHandle = svg.append("circle")
+        .attr("class", "force-arrow-handle")
+        .attr("r", 10);
+
+    let cartX = cartInitialX;
+    let velocity = 0;
+    let appliedForce = 0;
+    let mass = 50;
+    let isDragging = false;
+    let animationFrame;
+    const forceScale = 0.5;
+    const timeStep = 0.016;
+
+    const massSlider = d3.select("#massSlider");
+    const massValueSpan = d3.select("#massValue");
+    const forceReadoutSpan = d3.select("#forceReadout");
+    const accelerationReadoutSpan = d3.select("#accelerationReadout");
+    const resetButton = d3.select("#resetButton");
+
+    function updateReadouts() {
+        forceReadoutSpan.text(appliedForce.toFixed(1));
+        const acceleration = appliedForce / mass;
+        accelerationReadoutSpan.text(acceleration.toFixed(2));
+    }
+
+    function updateCartPosition() {
+        if (!isDragging) {
+            velocity *= 0.98;
+            if (Math.abs(velocity) < 0.01) velocity = 0;
+        }
+
+        const acceleration = appliedForce / mass;
+        velocity += acceleration * timeStep * 100;
+        cartX += velocity * timeStep;
+
+        const minX = cartWidth / 2;
+        const maxX = width - cartWidth / 2;
+        if (cartX < minX) {
+            cartX = minX;
+            velocity = 0;
+        } else if (cartX > maxX) {
+            cartX = maxX;
+            velocity = 0;
+        }
+
+        cartGroup.attr("transform", `translate(${cartX}, ${cartY})`);
+        updateReadouts();
+
+        if (isDragging || Math.abs(velocity) > 0) {
+            animationFrame = requestAnimationFrame(updateCartPosition);
+        }
+    }
+
+    function startAnimation() {
+        if (!animationFrame) {
+            animationFrame = requestAnimationFrame(updateCartPosition);
+        }
+    }
+
+    function stopAnimation() {
+        if (animationFrame) {
+            cancelAnimationFrame(animationFrame);
+            animationFrame = null;
+        }
+    }
+
+    const drag = d3.drag()
+        .on("start", (event) => {
+            isDragging = true;
+            forceArrow.style("opacity", 1);
+            forceHandle.style("opacity", 0.7).raise();
+            updateDrag(event.x);
+            startAnimation();
+        })
+        .on("drag", (event) => {
+            updateDrag(event.x);
+        })
+        .on("end", () => {
+            isDragging = false;
+            appliedForce = 0;
+            forceArrow.style("opacity", 0);
+            forceHandle.style("opacity", 0);
+            updateReadouts();
+        });
+
+    function updateDrag(dragX) {
+        const dragVectorX = dragX - cartX;
+        appliedForce = Math.max(0, dragVectorX * forceScale);
+
+        forceHandle.attr("cx", dragX).attr("cy", cartY);
+
+        const arrowStartX = cartX - cartWidth / 3;
+        const arrowEndX = arrowStartX + appliedForce / forceScale;
+        forceArrow
+            .attr("x1", arrowStartX)
+            .attr("y1", cartY)
+            .attr("x2", arrowEndX)
+            .attr("y2", cartY);
+
+        updateReadouts();
+    }
+
+    const dragTarget = svg.append("circle")
+        .attr("cx", cartInitialX)
+        .attr("cy", cartY)
+        .attr("r", cartHeight)
+        .style("fill", "transparent")
+        .style("cursor", "grab")
+        .call(drag);
+
+    massSlider.on("input", function() {
+        mass = +this.value;
+        massValueSpan.text(mass);
+        updateReadouts();
+    });
+
+    resetButton.on("click", function() {
+        stopAnimation();
+        isDragging = false;
+        appliedForce = 0;
+        velocity = 0;
+        cartX = cartInitialX;
+        mass = 50;
+        massSlider.property("value", mass);
+        massValueSpan.text(mass);
+        cartGroup.attr("transform", `translate(${cartX}, ${cartY})`);
+        forceArrow.style("opacity", 0);
+        forceHandle.style("opacity", 0);
+        updateReadouts();
+    });
+
+    updateReadouts();
+
+</script>
+
+</body>
+</html>

@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Newton's Second Law Demo: Force, Mass, Acceleration</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            min-height: 100vh;
+            background-color: #f0f8ff;
+            margin: 0;
+        }
+        .simulation-container {
+            background-color: #ffffff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+            width: 90%;
+            max-width: 700px;
+        }
+        h2 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 15px;
+        }
+        svg {
+            display: block;
+            margin: 0 auto;
+            background-color: #e8f4f8;
+            border-radius: 4px;
+            width: 100%;
+        }
+        .ground {
+            stroke: #555;
+            stroke-width: 2;
+        }
+        .object {
+            cursor: grab;
+        }
+        .object:active {
+            cursor: grabbing;
+        }
+        .force-arrow {
+            stroke: #ff4500;
+            stroke-width: 2;
+            marker-end: url(#arrowhead);
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
+        }
+         .force-arrow.visible {
+            opacity: 1;
+        }
+        .label {
+            font-size: 12px;
+            fill: #333;
+            text-anchor: middle;
+            pointer-events: none;
+            user-select: none;
+        }
+        .controls {
+            text-align: center;
+            margin-top: 15px;
+        }
+        button {
+            padding: 10px 15px;
+            font-size: 14px;
+            margin: 0 10px;
+            cursor: pointer;
+            background-color: #4682b4;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            transition: background-color 0.2s ease;
+        }
+        button:hover {
+            background-color: #5a9bd4;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .scenario-description {
+            font-size: 14px;
+            color: #555;
+            text-align: center;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="simulation-container">
+        <h2>Demo 1: Same Force, Different Mass</h2>
+        <p class="scenario-description">Observe how the lighter object (smaller circle) accelerates faster when the same force is applied to both.</p>
+        <svg id="scenario1" width="600" height="200" viewBox="0 0 600 200">
+            <defs>
+                <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#ff4500" />
+                </marker>
+            </defs>
+            <line class="ground" x1="0" y1="170" x2="600" y2="170"></line>
+        </svg>
+        <div class="controls">
+            <button id="applyForce1">Apply Equal Force</button>
+            <button id="reset1">Reset</button>
+        </div>
+    </div>
+
+    <div class="simulation-container">
+        <h2>Demo 2: Different Force, Same Mass</h2>
+        <p class="scenario-description">See how applying a larger force results in greater acceleration for objects of the same mass.</p>
+        <svg id="scenario2" width="600" height="200" viewBox="0 0 600 200">
+            <defs>
+                <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="0" refY="3.5" orient="auto">
+                    <polygon points="0 0, 10 3.5, 0 7" fill="#ff4500" />
+                </marker>
+            </defs>
+            <line class="ground" x1="0" y1="170" x2="600" y2="170"></line>
+        </svg>
+        <div class="controls">
+            <button id="applyForce2Low">Apply Low Force (Top)</button>
+            <button id="applyForce2High">Apply High Force (Bottom)</button>
+            <button id="reset2">Reset</button>
+        </div>
+    </div>
+
+    <script>
+        const svgWidth = 600;
+        const svgHeight = 200;
+        const groundY = 170;
+        const startX = 80;
+        const endX = 520;
+        const travelDistance = endX - startX;
+        const baseTransitionTime = 5000;
+        const forceArrowLength = 50;
+        const appliedForceMagnitude = 20;
+        const highForceMagnitude = 40;
+
+        const objects1 = [
+            { id: 'obj1-1', mass: 1, radius: 15, color: '#1f77b4', y: groundY - 15, x: startX, label: 'Mass: 1kg', acceleration: 0 },
+            { id: 'obj1-2', mass: 4, radius: 30, color: '#aec7e8', y: groundY - 30, x: startX, label: 'Mass: 4kg', acceleration: 0 }
+        ];
+
+        const objects2 = [
+            { id: 'obj2-1', mass: 2, radius: 20, color: '#2ca02c', y: groundY - 80, x: startX, label: 'Mass: 2kg', appliedForce: 0, acceleration: 0 },
+            { id: 'obj2-2', mass: 2, radius: 20, color: '#98df8a', y: groundY - 30, x: startX, label: 'Mass: 2kg', appliedForce: 0, acceleration: 0 }
+        ];
+
+        function setupScenario(svgId, objects) {
+            const svg = d3.select(svgId);
+            svg.selectAll('.object-group').remove();
+
+            const groups = svg.selectAll('.object-group')
+                .data(objects, d => d.id)
+                .enter()
+                .append('g')
+                .attr('class', 'object-group')
+                .attr('transform', d => `translate(${d.x}, ${d.y})`);
+
+            groups.append('circle')
+                .attr('r', d => d.radius)
+                .attr('fill', d => d.color)
+                .attr('class', 'object')
+                .call(d3.drag()
+                    .on("start", dragstarted)
+                    .on("drag", dragged)
+                    .on("end", dragended));
+
+            groups.append('text')
+                .attr('class', 'label')
+                .attr('dy', d => -d.radius - 5)
+                .text(d => d.label);
+
+            groups.append('text')
+                .attr('class', 'label acceleration-label')
+                .attr('dy', d => d.radius + 15)
+                .text(d => `a = ${d.acceleration.toFixed(2)} m/s²`);
+
+            groups.append('line')
+                .attr('class', 'force-arrow')
+                .attr('x1', d => -d.radius - 5)
+                .attr('y1', 0)
+                .attr('x2', d => -d.radius - 5 - forceArrowLength)
+                .attr('y2', 0);
+        }
+
+        function applyForce(svgId, objects, forceMagnitude) {
+            d3.select(`#applyForce${svgId.slice(-1)}`).property('disabled', true);
+            const svg = d3.select(svgId);
+
+            svg.selectAll('.object-group')
+                .each(function(d) {
+                    const group = d3.select(this);
+                    const force = typeof forceMagnitude === 'function' ? forceMagnitude(d) : forceMagnitude;
+                    d.acceleration = force / d.mass;
+                    const duration = baseTransitionTime / Math.sqrt(d.acceleration);
+
+                    group.select('.acceleration-label').text(`a = ${d.acceleration.toFixed(2)} m/s²`);
+                    group.select('.force-arrow').classed('visible', true);
+
+                    group.transition()
+                        .duration(duration)
+                        .ease(d3.easeLinear)
+                        .attr('transform', `translate(${endX}, ${d.y})`)
+                        .end()
+                        .then(() => {
+                            group.select('.force-arrow').classed('visible', false);
+                        })
+                        .catch(() => {});
+                });
+        }
+
+        function resetScenario(svgId, objects) {
+            d3.select(`#applyForce${svgId.slice(-1)}`).property('disabled', false);
+            const svg = d3.select(svgId);
+            svg.selectAll('.object-group').interrupt();
+            objects.forEach(d => {
+                d.x = startX;
+                d.acceleration = 0;
+            });
+            setupScenario(svgId, objects);
+            svg.selectAll('.force-arrow').classed('visible', false);
+        }
+
+        function dragstarted(event, d) {
+            d3.select(this.parentNode).raise();
+            d3.select(this).attr("stroke", "black").attr("stroke-width", 2);
+        }
+
+        function dragged(event, d) {
+            d.x = Math.max(d.radius, Math.min(svgWidth - d.radius, event.x));
+            d3.select(this.parentNode).attr("transform", `translate(${d.x}, ${d.y})`);
+            d3.select(this.parentNode).interrupt();
+            d.acceleration = 0;
+            d3.select(this.parentNode).select('.acceleration-label').text(`a = ${d.acceleration.toFixed(2)} m/s²`);
+            d3.select(this.parentNode).select('.force-arrow').classed('visible', false);
+        }
+
+        function dragended(event, d) {
+            d3.select(this).attr("stroke", null);
+        }
+
+        function applyForceScenario2(targetId, force) {
+            d3.select('#applyForce2Low').property('disabled', true);
+            d3.select('#applyForce2High').property('disabled', true);
+
+            const targetData = objects2.find(d => d.id === targetId);
+            if (!targetData) return;
+
+            targetData.appliedForce = force;
+            targetData.acceleration = targetData.appliedForce / targetData.mass;
+            const duration = baseTransitionTime / Math.sqrt(targetData.acceleration);
+            const arrowLength = force * 2;
+
+            const group = d3.select("#scenario2").selectAll('.object-group')
+                .filter(d => d.id === targetId);
+
+            group.select('.acceleration-label').text(`a = ${targetData.acceleration.toFixed(2)} m/s² (F=${force})`);
+
+            group.select('.force-arrow')
+                .attr('x2', d => -d.radius - 5 - arrowLength)
+                .classed('visible', true);
+
+            group.transition()
+                .duration(duration)
+                .ease(d3.easeLinear)
+                .attr('transform', `translate(${endX}, ${targetData.y})`)
+                .end()
+                .then(() => {
+                    group.select('.force-arrow').classed('visible', false);
+                })
+                .catch(() => {});
+        }
+
+
+        function resetScenario2() {
+            d3.select('#applyForce2Low').property('disabled', false);
+            d3.select('#applyForce2High').property('disabled', false);
+            const svg = d3.select("#scenario2");
+            svg.selectAll('.object-group').interrupt();
+            objects2.forEach(d => {
+                d.x = startX;
+                d.appliedForce = 0;
+                d.acceleration = 0;
+            });
+            setupScenario("#scenario2", objects2);
+             svg.selectAll('.force-arrow').classed('visible', false);
+        }
+
+        setupScenario("#scenario1", objects1);
+        setupScenario("#scenario2", objects2);
+
+        d3.select('#applyForce1').on('click', () => applyForce("#scenario1", objects1, appliedForceMagnitude));
+        d3.select('#reset1').on('click', () => resetScenario("#scenario1", objects1));
+
+        d3.select('#applyForce2Low').on('click', () => applyForceScenario2('obj2-1', appliedForceMagnitude));
+        d3.select('#applyForce2High').on('click', () => applyForceScenario2('obj2-2', highForceMagnitude));
+        d3.select('#reset2').on('click', resetScenario2);
+    </script>
+
+</body>
+</html>

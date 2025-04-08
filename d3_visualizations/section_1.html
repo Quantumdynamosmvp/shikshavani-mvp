@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inertia Demonstration</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background-color: #f0f0f0;
+            margin: 0;
+        }
+        .simulation-container {
+            text-align: center;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        p {
+            color: #555;
+            margin-bottom: 20px;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        svg {
+            background-color: #ffffff;
+            border: 1px solid #ccc;
+            cursor: grab;
+        }
+        .cart {
+            stroke: #333;
+            stroke-width: 1.5px;
+            cursor: grab;
+        }
+        .cart.dragging {
+            opacity: 0.7;
+            cursor: grabbing;
+        }
+        .cart-label {
+            font-size: 12px;
+            fill: #000;
+            text-anchor: middle;
+            pointer-events: none;
+            user-select: none;
+        }
+        .ground {
+            stroke: #333;
+            stroke-width: 2px;
+        }
+        .force-indicator {
+             fill: rgba(255, 165, 0, 0.6);
+             pointer-events: none;
+        }
+
+    </style>
+</head>
+<body>
+    <div class="simulation-container">
+        <h1>Interactive Inertia Demo</h1>
+        <p>Click and drag the carts horizontally to feel the difference in inertia. The heavier cart requires more 'effort' (moves slower for the same drag) and resists changes in motion more strongly.</p>
+        <div id="inertia-vis"></div>
+    </div>
+
+    <script>
+        const parentDiv = document.getElementById('inertia-vis');
+        const width = 700;
+        const height = 300;
+        const groundY = height - 50;
+        const friction = 0.05;
+        const pushForceMultiplier = 0.02;
+
+        const svg = d3.select("#inertia-vis")
+            .append("svg")
+            .attr("width", width)
+            .attr("height", height)
+            .attr("viewBox", `0 0 ${width} ${height}`);
+
+        svg.append("line")
+            .attr("class", "ground")
+            .attr("x1", 0)
+            .attr("y1", groundY)
+            .attr("x2", width)
+            .attr("y2", groundY);
+
+        const cartsData = [
+            { id: "light", x: width * 0.2, y: groundY, width: 40, height: 30, color: "#87CEEB", mass: 1, label: "Light Cart (Mass: 1x)", velocity: 0, textYOffset: 20 },
+            { id: "heavy", x: width * 0.6, y: groundY, width: 60, height: 45, color: "#696969", mass: 5, label: "Heavy Cart (Mass: 5x)", velocity: 0, textYOffset: 25 }
+        ];
+
+        const cartGroups = svg.selectAll(".cart-group")
+            .data(cartsData)
+            .enter()
+            .append("g")
+            .attr("class", "cart-group")
+            .attr("transform", d => `translate(${d.x}, ${d.y - d.height})`);
+
+        cartGroups.append("rect")
+            .attr("class", "cart")
+            .attr("id", d => d.id)
+            .attr("width", d => d.width)
+            .attr("height", d => d.height)
+            .attr("fill", d => d.color)
+            .each(function(d) {
+                d.x = d.x;
+                d.velocity = 0;
+                d.isDragging = false;
+                d.forceIndicatorSize = 0;
+            });
+
+        cartGroups.append("polygon")
+            .attr("class", "force-indicator")
+            .attr("points", d => `0,${d.height/2} -10,${d.height/2 - 5} -10,${d.height/2 + 5}`)
+            .attr("transform", "scale(0)")
+            .style("opacity", 0);
+
+        cartGroups.append("text")
+            .attr("class", "cart-label")
+            .attr("x", d => d.width / 2)
+            .attr("y", d => d.height + d.textYOffset)
+            .text(d => d.label);
+
+        function dragstarted(event, d) {
+            d3.select(this).classed("dragging", true);
+            d.isDragging = true;
+            d.velocity = 0;
+            d3.select(this.parentNode).select(".force-indicator").style("opacity", 1);
+            d3.select(this.parentNode).interrupt();
+        }
+
+        function dragged(event, d) {
+            const potentialX = event.x;
+            const dx = potentialX - d.x;
+
+            const appliedForce = dx * pushForceMultiplier;
+            const acceleration = appliedForce / d.mass;
+
+            d.velocity += acceleration;
+
+            let newX = d.x + d.velocity;
+            newX = Math.max(0, Math.min(width - d.width, newX));
+            d.x = newX;
+
+            d3.select(this.parentNode).attr("transform", `translate(${newX}, ${d.y - d.height})`);
+
+             const forceSize = Math.min(Math.abs(appliedForce)*50, 30);
+             const directionScale = appliedForce > 0 ? -1 : 1;
+             d3.select(this.parentNode).select(".force-indicator")
+                 .attr("transform", `translate(${directionScale < 0 ? d.width : 0}, 0) scale(${forceSize * directionScale}, ${forceSize})`);
+
+        }
+
+        function dragended(event, d) {
+            d3.select(this).classed("dragging", false);
+            d.isDragging = false;
+            d3.select(this.parentNode).select(".force-indicator")
+                .transition().duration(200)
+                .attr("transform", `translate(0, 0) scale(0)`)
+                .style("opacity", 0);
+
+             if (!d.isSimulating) {
+                simulate(d3.select(this.parentNode), d);
+             }
+        }
+
+        const drag = d3.drag()
+            .on("start", dragstarted)
+            .on("drag", dragged)
+            .on("end", dragended);
+
+        cartGroups.select(".cart").call(drag);
+
+        function simulate(cartGroup, d) {
+            d.isSimulating = true;
+
+            function step() {
+                if (d.isDragging) {
+                    d.isSimulating = false;
+                    return false;
+                }
+
+                const frictionForce = -d.velocity * friction;
+                const acceleration = frictionForce / d.mass;
+
+                d.velocity += acceleration;
+
+                let newX = d.x + d.velocity;
+                newX = Math.max(0, Math.min(width - d.width, newX));
+                d.x = newX;
+
+                cartGroup.attr("transform", `translate(${d.x}, ${d.y - d.height})`);
+
+
+                if (Math.abs(d.velocity) < 0.05) {
+                    d.velocity = 0;
+                    d.isSimulating = false;
+                    return false;
+                }
+
+                return true;
+            }
+
+             d3.timer(function() {
+                 return !step();
+             });
+        }
+
+    </script>
+</body>
+</html>

@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>D3.js Inertia Demo Prompt</title>
+<style>
+  body { font-family: sans-serif; line-height: 1.5; padding: 20px; }
+  pre { background-color: #f0f0f0; padding: 15px; border-radius: 5px; white-space: pre-wrap; word-wrap: break-word; }
+</style>
+</head>
+<body>
+
+<pre>
+## D3.js Interactive Visualization Prompt: Inertia Demo ("inertia_demo")
+
+**Objective:** Create a compelling, interactive D3.js animation that clearly demonstrates the concept of inertia, moving beyond a simple description to provide a reasoned, interactive account of *why* objects resist changes in motion, as inspired by our understanding of explanations.
+
+**Core Concept Visualization:** We need to show Newton's First Law in action. An object at rest stays at rest, and an object in motion stays in motion with the same speed and in the same direction unless acted upon by an unbalanced force. The interaction should let users *feel* this resistance to change.
+
+**Detailed Requirements:**
+
+1.  **Scene Setup:**
+    *   Create an SVG canvas occupying a significant portion of the viewport.
+    *   Draw a horizontal line representing a flat surface near the bottom of the SVG. Use a muted color like light grey (`#cccccc`).
+    *   Place a solid, visually 'heavy' rectangular block (e.g., width 80, height 50) resting on this surface. Give it a distinct color, perhaps a deep blue (`#2c3e50`). Position it initially near the left side.
+
+2.  **Interaction - Applying Force:**
+    *   Implement a drag interaction (`d3.drag()`) directly on the block or via a dedicated handle/arrow attached to it.
+    *   When the user starts dragging the block horizontally to the right, visualize the applied force. An arrow originating from the block's center and pointing right could work. The arrow's length and thickness should dynamically scale proportionally to the drag displacement (or calculated velocity/acceleration), providing visual feedback on the force magnitude. Use a contrasting color like red (`#e74c3c`) for the force arrow.
+    *   As the user drags (applies force), the block should accelerate smoothly from rest. Use a gentle easing function like `d3.easeCubicOut` for starting motion.
+
+3.  **Demonstrating Inertia:**
+    *   **Key Interaction:** When the user *stops* dragging (releases the mouse button), the applied force visualization (the arrow) should disappear immediately or fade out quickly (e.g., 150ms transition).
+    *   **The Crucial Part:** The block *must not* stop instantly. It should continue moving to the right due to inertia, gradually decelerating due to simulated friction. This continued motion *after* the force is removed is the core demonstration.
+    *   Implement a simple friction model: decrease the block's velocity over time when no external force is applied. The deceleration should be noticeable but allow the block to travel a reasonable distance before stopping.
+    *   Use `d3.timer` or `requestAnimationFrame` for the continuous motion update loop after the drag ends. Ensure smooth position updates during this phase.
+
+4.  **Interaction - Stopping Motion (Optional but Recommended):**
+    *   Allow the user to click/tap *ahead* of the moving block to apply a 'stopping' force or barrier. Visualize this perhaps as a temporary vertical bar appearing where clicked.
+    *   When the moving block hits this barrier, it should stop abruptly, visually reinforcing that an external force is required to change its state of motion.
+
+5.  **Visual Polish & Design:**
+    *   Use smooth `d3.transition()` for all visual changes (position, arrow size, opacity) with appropriate durations (e.g., 100-300ms) and easing (`d3.easeCubicInOut` or similar).
+    *   Ensure element scaling (like the force arrow) is handled correctly without distortion.
+    *   Maintain a clean, uncluttered design. Use a simple, modern color scheme (e.g., the suggested deep blue, light grey, red, possibly a neutral background like white or off-white).
+    *   Add subtle effects like a slight shadow beneath the block to enhance its visual presence.
+
+6.  **Code Quality:**
+    *   Generate clean, well-structured HTML and JavaScript code.
+    *   Use meaningful variable names.
+    *   Add comments explaining key sections, especially the physics simulation (force application, inertia, friction).
+    *   Optimize the animation loop for performance. Structure the D3 code logically (setup, update functions, event handlers). Ensure separation of concerns where possible.
+
+This prompt guides the creation of an *explanatory* visualization, allowing users to interactively probe the cause-and-effect relationship defined by inertia, directly aligning with the goal of providing a reasoned account, not just a description.
+</pre>
+
+</body>
+</html>

@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Interactive Learning Experience</title>
+    <style>
+        :root {
+            --primary: #8a63f2;
+            --secondary: #00e6f0;
+            --background: #0a0f24;
+            --text: #f0f4ff;
+        }
+        
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Chakra Petch', sans-serif;
+            background: var(--background);
+            color: var(--text);
+            overflow: hidden;
+        }
+        
+        #container {
+            display: flex;
+            height: 100vh;
+            position: relative;
+        }
+        
+        #video-container, #d3-container {
+            width: 50%;
+            height: 100%;
+            position: relative;
+        }
+        
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            background: #000;
+        }
+        
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            background: #000;
+        }
+        
+        #controls {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 100;
+            display: flex;
+            gap: 15px;
+        }
+        
+        button {
+            padding: 12px 25px;
+            margin: 0;
+            font-size: 16px;
+            cursor: pointer;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            border: none;
+            border-radius: 30px;
+            font-weight: 600;
+            box-shadow: 0 4px 15px rgba(138, 99, 242, 0.4);
+            transition: all 0.3s ease;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(138, 99, 242, 0.6);
+        }
+        
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+        
+        #section-indicator {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(20, 25, 50, 0.8);
+            padding: 8px 20px;
+            border-radius: 20px;
+            font-size: 14px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(138, 99, 242, 0.3);
+        }
+        
+        #loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(10, 15, 36, 0.9);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        .loader {
+            width: 60px;
+            height: 60px;
+            border: 5px solid rgba(138, 99, 242, 0.3);
+            border-radius: 50%;
+            border-top-color: var(--primary);
+            animation: spin 1s ease-in-out infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .error-message {
+            color: #ff6b6b;
+            text-align: center;
+            max-width: 80%;
+            padding: 20px;
+            background: rgba(0,0,0,0.7);
+            border-radius: 10px;
+        }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@400;600&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div id="container">
+        <div id="video-container">
+            <video id="video" controls>
+                <source src="/static/final_videos/complete_video.mp4" type="video/mp4">
+                Your browser does not support the video tag.
+            </video>
+        </div>
+        <div id="d3-container">
+            <iframe id="d3-frame" src="/static/d3_visualizations/section_1.html"></iframe>
+        </div>
+        
+        <div id="section-indicator">Section 1 of 6</div>
+        
+        <div id="controls">
+            <button id="prev-btn" onclick="prevSection()" disabled>⬅️ Previous</button>
+            <button id="next-btn" onclick="nextSection()">Next ➡️</button>
+        </div>
+    </div>
+    
+    <div id="loading-overlay">
+        <div class="loader"></div>
+        <div>Loading interactive content...</div>
+    </div>
+
+    <script>
+        let currentSection = 0;
+        const totalSections = 6;
+        const video = document.getElementById('video');
+        const d3Frame = document.getElementById('d3-frame');
+        const prevBtn = document.getElementById('prev-btn');
+        const nextBtn = document.getElementById('next-btn');
+        const sectionIndicator = document.getElementById('section-indicator');
+        const loadingOverlay = document.getElementById('loading-overlay');
+        
+        // Show loading initially
+        loadingOverlay.style.display = 'flex';
+
+        // Check if resources exist
+        function checkResources() {
+            fetch('/static/final_videos/complete_video.mp4')
+                .then(response => {
+                    if (!response.ok) {
+                        showError("Video file not found. Please check the file path.");
+                    }
+                })
+                .catch(() => {
+                    showError("Error loading video file.");
+                });
+
+            fetch('/static/d3_visualizations/section_1.html')
+                .then(response => {
+                    if (!response.ok) {
+                        showError("D3 content not found. Please check section files.");
+                    }
+                })
+                .catch(() => {
+                    showError("Error loading D3 content.");
+                });
+        }
+
+        function showError(message) {
+            loadingOverlay.innerHTML = `
+                <div class="error-message">
+                    <i class="fas fa-exclamation-triangle" style="font-size: 2rem; margin-bottom: 10px;"></i>
+                    <div>${message}</div>
+                </div>
+            `;
+            console.error(message);
+        }
+
+        function updateD3() {
+            loadingOverlay.style.display = 'flex';
+            d3Frame.src = `/static/d3_visualizations/section_${currentSection+1}.html`;
+            sectionIndicator.textContent = `Section ${currentSection+1} of ${totalSections}`;
+            
+            // Update button states
+            prevBtn.disabled = currentSection === 0;
+            nextBtn.disabled = currentSection === totalSections - 1;
+            
+            // Sync video to section
+            if (video.duration) {
+                const sectionDuration = video.duration / totalSections;
+                video.currentTime = currentSection * sectionDuration;
+            }
+        }
+        
+        function nextSection() {
+            if (currentSection < totalSections - 1) {
+                currentSection++;
+                updateD3();
+            }
+        }
+        
+        function prevSection() {
+            if (currentSection > 0) {
+                currentSection--;
+                updateD3();
+            }
+        }
+        
+        // Initialize when video is ready
+        video.addEventListener('loadedmetadata', () => {
+            updateD3();
+            loadingOverlay.style.display = 'none';
+        });
+
+        // Handle video errors
+        video.addEventListener('error', () => {
+            showError("Failed to load video. Please check the file exists and is playable.");
+        });
+
+        // Handle iframe loading
+        d3Frame.addEventListener('load', () => {
+            loadingOverlay.style.display = 'none';
+        });
+
+        d3Frame.addEventListener('error', () => {
+            showError("Failed to load interactive content for this section.");
+        });
+        
+        // Keyboard navigation
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight') nextSection();
+            if (e.key === 'ArrowLeft') prevSection();
+        });
+
+        // Initial resource check
+        checkResources();
+    </script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</body>
+</html>

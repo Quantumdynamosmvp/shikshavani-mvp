@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>D3 Demo: Evolving Explanations (Inertia Concept)</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        body {
+            font-family: sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background-color: #f0f0f0;
+            margin: 0;
+        }
+        svg {
+            border: 1px solid #ccc;
+            background-color: #ffffff;
+            cursor: grab;
+        }
+        svg.grabbing {
+            cursor: grabbing;
+        }
+        .explanation {
+            stroke: #333;
+            stroke-width: 1.5px;
+            filter: url(#drop-shadow);
+        }
+        .evidence {
+            stroke: #555;
+            stroke-width: 0.5px;
+        }
+        button {
+            margin-top: 20px;
+            padding: 10px 15px;
+            font-size: 1em;
+            cursor: pointer;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            transition: background-color 0.2s ease;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .tooltip {
+            position: absolute;
+            text-align: center;
+            padding: 6px;
+            font: 12px sans-serif;
+            background: lightsteelblue;
+            border: 0px;
+            border-radius: 8px;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        #controls {
+            margin-top: 15px;
+            text-align: center;
+        }
+        #controls label {
+            margin-right: 10px;
+        }
+         #resetButton {
+            background-color: #f44336;
+            margin-left: 10px;
+         }
+         #resetButton:hover {
+             background-color: #da190b;
+         }
+         p {
+             max-width: 600px;
+             text-align: center;
+             color: #333;
+         }
+
+    </style>
+</head>
+<body>
+
+    <h1>Visualizing Evolving Explanations</h1>
+    <p>
+        Drag the central shape (the current 'explanation') to feel its 'inertia' – its resistance to change.
+        Click 'Introduce New Evidence' to see how new information impacts and potentially refines or replaces the explanation over time.
+    </p>
+
+    <div id="visualization"></div>
+    <div id="controls">
+        <button id="evidenceButton">Introduce New Evidence</button>
+        <button id="resetButton">Reset Simulation</button>
+    </div>
+    <div class="tooltip"></div>
+
+    <script>
+        const config = {
+            width: 600,
+            height: 400,
+            initialExplanation: {
+                shape: 'rect',
+                size: 80,
+                color: '#4682B4',
+                label: 'Initial Explanation (Model A)',
+                inertia: 0.8
+            },
+            evidence: {
+                count: 5,
+                size: 8,
+                color: '#FFD700',
+                speed: 2000
+            },
+            evolutionThreshold: 5,
+            evolvedExplanation: {
+                shape: 'polygon',
+                points: "80,10 100,80 50,100 0,80",
+                size: 90,
+                color: '#90EE90',
+                label: 'Refined Explanation (Model B)',
+            },
+            replacedExplanation: {
+                shape: 'circle',
+                size: 70,
+                color: '#8A2BE2',
+                label: 'New Paradigm (Model C)',
+            },
+            transitionDuration: 500,
+            wobbleIntensity: 5,
+            wobbleDuration: 150
+        };
+
+        let explanationState;
+        let hitsCounter = 0;
+        let evolutionStage = 0;
+
+        const svg = d3.select("#visualization")
+            .append("svg")
+            .attr("width", config.width)
+            .attr("height", config.height)
+            .attr("viewBox", `0 0 ${config.width} ${config.height}`);
+
+        const defs = svg.append("defs");
+        const filter = defs.append("filter")
+            .attr("id", "drop-shadow")
+            .attr("height", "130%");
+        filter.append("feGaussianBlur")
+            .attr("in", "SourceAlpha")
+            .attr("stdDeviation", 3)
+            .attr("result", "blur");
+        filter.append("feOffset")
+            .attr("in", "blur")
+            .attr("dx", 2)
+            .attr("dy", 2)
+            .attr("result", "offsetBlur");
+        const feMerge = filter.append("feMerge");
+        feMerge.append("feMergeNode").attr("in", "offsetBlur");
+        feMerge.append("feMergeNode").attr("in", "SourceGraphic");
+
+        const tooltip = d3.select(".tooltip");
+        const centerX = config.width / 2;
+        const centerY = config.height / 2;
+
+        function drawExplanation(state) {
+            svg.select(".explanation-group").remove();
+
+            const explanationGroup = svg.append("g")
+                .attr("class", "explanation-group")
+                .datum({ x: centerX, y: centerY, state: state })
+                .attr("transform", `translate(${centerX}, ${centerY})`);
+
+            let explanationShape;
+
+            switch (state.shape) {
+                case 'rect':
+                    explanationShape = explanationGroup.append("rect")
+                        .attr("x", -state.size / 2)
+                        .attr("y", -state.size / 2)
+                        .attr("width", state.size)
+                        .attr("height", state.size)
+                        .attr("rx", 5)
+                        .attr("ry", 5);
+                    break;
+                case 'circle':
+                    explanationShape = explanationGroup.append("circle")
+                        .attr("r", state.size / 2);
+                    break;
+                case 'polygon':
+                    explanationShape = explanationGroup.append("polygon")
+                        .attr("points", state.points)
+                        .attr("transform", `scale(${state.size / 100})`);
+                    break;
+                default:
+                    explanationShape = explanationGroup.append("rect")
+                        .attr("x", -state.size / 2)
+                        .attr("y", -state.size / 2)
+                        .attr("width", state.size)
+                        .attr("height", state.size);
+            }
+
+            explanationShape
+                .attr("class", "explanation")
+                .style("fill", state.color)
+                .on("mouseover", function(event) {
+                    tooltip.transition()
+                        .duration(200)
+                        .style("opacity", .9);
+                    tooltip.html(state.label)
+                        .style("left", (event.pageX + 10) + "px")
+                        .style("top", (event.pageY - 28) + "px");
+                    d3.select(this).style("stroke-width", "3px");
+                })
+                .on("mouseout", function() {
+                    tooltip.transition()
+                        .duration(500)
+                        .style("opacity", 0);
+                     d3.select(this).style("stroke-width", "1.5px");
+                })
+                .call(d3.drag()
+                    .on("start", dragstarted)
+                    .on("drag", dragged)
+                    .on("end", dragended));
+
+             explanationGroup.append("text")
+                .attr("text-anchor", "middle")
+                .attr("dy", ".35em")
+                .attr("fill", "#fff")
+                .style("font-size", "10px")
+                .style("pointer-events", "none")
+                .text(`Model ${String.fromCharCode(65 + evolutionStage)}`);
+
+            return explanationGroup;
+        }
+
+        function introduceEvidence() {
+            const explanationGroup = d3.select(".explanation-group");
+            if (explanationGroup.empty()) return;
+
+            const currentPos = explanationGroup.datum();
+
+             for (let i = 0; i < config.evidence.count; i++) {
+                let startX, startY;
+                const side = Math.floor(Math.random() * 4);
+                switch(side) {
+                    case 0: startX = Math.random() * config.width; startY = -config.evidence.size; break;
+                    case 1: startX = config.width + config.evidence.size; startY = Math.random() * config.height; break;
+                    case 2: startX = Math.random() * config.width; startY = config.height + config.evidence.size; break;
+                    case 3: startX = -config.evidence.size; startY = Math.random() * config.height; break;
+                }
+
+                 const targetX = currentPos.x + (Math.random() - 0.5) * config.initialExplanation.size * 0.5;
+                 const targetY = currentPos.y + (Math.random() - 0.5) * config.initialExplanation.size * 0.5;
+
+                svg.append("circle")
+                    .attr("class", "evidence")
+                    .attr("cx", startX)
+                    .attr("cy", startY)
+                    .attr("r", config.evidence.size)
+                    .style("fill", config.evidence.color)
+                    .style("opacity", 0.8)
+                    .transition()
+                    .duration(config.evidence.speed * (0.8 + Math.random() * 0.4))
+                    .ease(d3.easeQuadIn)
+                    .attr("cx", targetX)
+                    .attr("cy", targetY)
+                    .transition()
+                    .duration(200)
+                    .style("opacity", 0)
+                    .remove()
+                    .on("end", () => {
+                         handleImpact(explanationGroup);
+                    });
+            }
+        }
+
+        function handleImpact(explanationGroup) {
+            if (explanationGroup.empty() || !explanationGroup.datum()) return;
+
+            hitsCounter++;
+
+            const currentPos = explanationGroup.datum();
+            const wobbleX = (Math.random() - 0.5) * 2 * config.wobbleIntensity;
+            const wobbleY = (Math.random() - 0.5) * 2 * config.wobbleIntensity;
+
+            explanationGroup.transition()
+                .duration(config.wobbleDuration / 2)
+                .ease(d3.easeQuadOut)
+                .attr("transform", `translate(${currentPos.x + wobbleX}, ${currentPos.y + wobbleY})`)
+                .transition()
+                .duration(config.wobbleDuration / 2)
+                .ease(d3.easeBounceOut)
+                .attr("transform", `translate(${currentPos.x}, ${currentPos.y})`);
+
+            if (evolutionStage === 0 && hitsCounter >= config.evolutionThreshold) {
+                evolveExplanation(explanationGroup, config.evolvedExplanation, 1);
+            } else if (evolutionStage === 1 && hitsCounter >= config.evolutionThreshold * 2) {
+                 evolveExplanation(explanationGroup, config.replacedExplanation, 2);
+            } else if (evolutionStage < 2) {
+                const originalColor = explanationGroup.datum().state.color;
+                explanationGroup.select(".explanation")
+                    .transition().duration(100).style("fill", d3.color(originalColor).brighter(0.5))
+                    .transition().duration(300).style("fill", originalColor);
+            }
+        }
+
+        function evolveExplanation(explanationGroup, newState, stage) {
+            evolutionStage = stage;
+            explanationState = newState;
+            hitsCounter = 0;
+
+             explanationGroup.datum(d => ({ ...d, state: newState }));
+
+            const shape = explanationGroup.select(".explanation");
+            const label = explanationGroup.select("text");
+
+             shape.transition()
+                 .duration(config.transitionDuration * 1.5)
+                 .ease(d3.easeQuadInOut)
+                 .style("fill", newState.color)
+                 .attrTween("d", function() {
+                     if (newState.shape === 'polygon' && this.tagName === 'polygon') {
+                         return d3.interpolateString(this.getAttribute("points"), newState.points);
+                     }
+                     return null;
+                 })
+                 .attr("width", newState.shape === 'rect' ? newState.size : null)
+                 .attr("height", newState.shape === 'rect' ? newState.size : null)
+                 .attr("r", newState.shape === 'circle' ? newState.size / 2 : null)
+                 .attr("transform", newState.shape === 'polygon' ? `scale(${newState.size / 100})` : null);
+
+            shape.on("mouseover", function(event) {
+                 tooltip.transition().duration(200).style("opacity", .9);
+                 tooltip.html(newState.label)
+                     .style("left", (event.pageX + 10) + "px")
+                     .style("top", (event.pageY - 28) + "px");
+                 d3.select(this).style("stroke-width", "3px");
+            });
+
+            label.text(`Model ${String.fromCharCode(65 + evolutionStage)}`);
+        }
+
+        function dragstarted(event, d) {
+            d3.select(this.parentNode).raise();
+            svg.classed("grabbing", true);
+            d.startX = d.x;
+            d.startY = d.y;
+            d.lastEventTime = performance.now();
+            d.lastEventX = event.x;
+            d.lastEventY = event.y;
+        }
+
+        function dragged(event, d) {
+             const currentTime = performance.now();
+             const deltaTime = Math.max(1, currentTime - d.lastEventTime);
+             const deltaX = event.x - d.lastEventX;
+             const deltaY = event.y - d.lastEventY;
+
+             const moveX = d.x + deltaX * (1 - config.initialExplanation.inertia * 0.5);
+             const moveY = d.y + deltaY * (1 - config.initialExplanation.inertia * 0.5);
+
+             const halfSize = (d.state.size || config.initialExplanation.size) / 2;
+             d.x = Math.max(halfSize, Math.min(config.width - halfSize, moveX));
+             d.y = Math.max(halfSize, Math.min(config.height - halfSize, moveY));
+
+            d3.select(this.parentNode).attr("transform", `translate(${d.x}, ${d.y})`);
+
+            d.lastEventTime = currentTime;
+            d.lastEventX = event.x;
+            d.lastEventY = event.y;
+        }
+
+        function dragended(event, d) {
+             svg.classed("grabbing", false);
+        }
+
+        function initializeSimulation() {
+            hitsCounter = 0;
+            evolutionStage = 0;
+            explanationState = JSON.parse(JSON.stringify(config.initialExplanation));
+
+            svg.selectAll("*").remove();
+            svg.append(() => defs.node());
+
+            drawExplanation(explanationState);
+        }
+
+        d3.select("#evidenceButton").on("click", introduceEvidence);
+        d3.select("#resetButton").on("click", initializeSimulation);
+
+        initializeSimulation();
+
+    </script>
+
+</body>
+</html>

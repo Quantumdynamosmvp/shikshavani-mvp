@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Interactive Visualizations</title>
+    <style>
+        body { margin: 0; padding: 0; overflow: hidden; font-family: Arial; }
+        #container { position: relative; width: 100vw; height: 100vh; }
+        iframe { width: 100%; height: 100%; border: none; }
+        .nav { position: fixed; bottom: 20px; width: 100%; text-align: center; z-index: 100; }
+        button { padding: 10px 20px; margin: 0 10px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        .back-btn { position: fixed; top: 10px; left: 10px; padding: 10px; background: #4CAF50; color: white; text-decoration: none; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <a href="workspace/651d77b3/interactive_page.html" class="back-btn">← Back to Main</a>
+    <div id="container">
+        <iframe id="d3-frame" src="workspace/651d77b3/d3_visualizations\section_1.html"></iframe>
+    </div>
+    <div class="nav">
+        <button onclick="prevSection()">Previous</button>
+        <span id="section-info">Section 1 of 6</span>
+        <button onclick="nextSection()">Next</button>
+    </div>
+    <script>
+        const totalSections = 6;
+        let currentSection = 0;
+        function loadSection(index) {
+            if (index >= 0 && index < totalSections) {
+                document.getElementById('d3-frame').src = `workspace/651d77b3/d3_visualizations/section_${index+1}.html`;
+                currentSection = index;
+                document.getElementById('section-info').textContent = `Section ${index+1} of ${totalSections}`;
+            }
+        }
+        function nextSection() { loadSection(currentSection + 1); }
+        function prevSection() { loadSection(currentSection - 1); }
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight') nextSection();
+            if (e.key === 'ArrowLeft') prevSection();
+        });
+    </script>
+</body>
+</html>
